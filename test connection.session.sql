@@ -105,7 +105,7 @@ CREATE TABLE Payments(
     paymentAmount decimal(10,2),
     paymentMethod varchar(100),
     CHECK (paymentMethod IN ('Cash', 'Credit Card', 'Debit Card')),
-    FOREIGN KEY (memberID) REFERENCES ClubMembers(MemberID),
+    FOREIGN KEY (memberID) REFERENCES ClubMembers(memberID),
 )
 
 
