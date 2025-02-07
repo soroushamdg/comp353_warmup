@@ -7,8 +7,6 @@ CREATE TABLE Personnel (
     locationID int,
     ssn int NOT NULL,
     medicareNO int,
-    workrole varchar(100),
-    mandate varchar(20),
     dob date,
     email varchar(255),
     phone bigint,
@@ -16,8 +14,6 @@ CREATE TABLE Personnel (
     postalCode varchar(255),
     city varchar(255),
     provinceCode varchar(2),
-    CHECK (workrole IN ('General Manager', 'Administrator', 'Captain', 'Coach', 'Assistant Coach')),
-    CHECK (mandate IN ('Paid', 'Volunteer')),
     CONSTRAINT UC_Personnel UNIQUE (ssn, medicareNO),
     PRIMARY KEY (personnelID),
     FOREIGN KEY (locationID) REFERENCES Locations(locationID)
@@ -80,9 +76,11 @@ CREATE TABLE WorkHistory(
     startDate date,
     endDate date,
     workrole varchar(100),
+    CHECK (workrole IN ('General Manager', 'Administrator', 'Captain', 'Coach', 'Assistant Coach')),
+    mandate varchar(20),
+    CHECK (mandate IN ('Paid', 'Volunteer')),
     FOREIGN KEY (personnelID) REFERENCES Personnel(personnelID),
     FOREIGN KEY (locationID) REFERENCES Locations(locationID)
-    FOREIGN KEY (workrole) REFERENCES Personnel(workrole)
 );
 
 --@block
