@@ -87,17 +87,18 @@ CREATE TABLE WorkHistory(
 
 --@block
 CREATE TABLE Locations (
-    locationID int AUTO_INCREMENT,
-    webAddress text,
-    phone bigint,
-    address text,
-    locationName text,
-    maxCapacity int,
-    postalCode varchar(255),
-    city varchar(255),
-    province varchar(255),
-    locationType varchar(255),
-    PRIMARY KEY (locationID)
+    locationID INT AUTO_INCREMENT,
+    webAddress TEXT,
+    phone BIGINT,
+    address TEXT,
+    locationName TEXT,
+    maxCapacity INT,
+    postalCode VARCHAR(255),
+    city VARCHAR(255),
+    province VARCHAR(255),
+    locationType VARCHAR(255),
+    CHECK (locationType IN ('Head', 'Branch'))
+    PRIMARY KEY (locationID),
     -- Head location has: the General manager, deputy manager, treasurer, secretary, and one or more administrators
 );
 
