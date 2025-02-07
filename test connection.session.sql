@@ -1,7 +1,7 @@
 
 --@block
 CREATE TABLE Personnel (
-    personnelID int,
+    personnelID int AUTO_INCREMENT PRIMARY KEY,
     firstName varchar(255),
     lastName varchar(255),
     locationID int,
@@ -15,13 +15,12 @@ CREATE TABLE Personnel (
     city varchar(255),
     provinceCode varchar(2),
     CONSTRAINT UC_Personnel UNIQUE (ssn, medicareNO),
-    PRIMARY KEY (personnelID),
     FOREIGN KEY (locationID) REFERENCES Locations(locationID)
 );
 
 --@block
 CREATE TABLE FamilyMembers (
-    FamilyMemberID int,
+    FamilyMemberID int AUTO_INCREMENT PRIMARY KEY,
     LocationID int,
     firstName varchar(255),
     lastName varchar(255),
@@ -36,14 +35,13 @@ CREATE TABLE FamilyMembers (
     provinceCode varchar(2),
     CONSTRAINT UC_FamilyMembers UNIQUE (ssn, medicareNo),
     FOREIGN KEY (LocationID) REFERENCES Locations(LocationID),
-    PRIMARY KEY (FamilyMemberID)  
 );
 
 --@block
 -- I need to enfore age constraints on the club members, which should be actively
 -- checked by comparing DOB to current date
 CREATE TABLE ClubMembers (
-    MemberID int AUTO_INCREMENT,
+    MemberID int AUTO_INCREMENT PRIMARY KEY,
     LocationID int,
     FamilyMemberID int,
     relationship varchar(100) NOT NULL,
@@ -67,7 +65,6 @@ CREATE TABLE ClubMembers (
     CONSTRAINT UC_ClubMembers UNIQUE (ssn, medicareNo),
     FOREIGN KEY (LocationID) REFERENCES Locations(LocationID),
     FOREIGN KEY (FamilyMemberID) REFERENCES FamilyMembers(FamilyMemberID),
-    PRIMARY KEY (MemberID)  
 );
 --@block
 CREATE TABLE WorkHistory(
@@ -79,13 +76,13 @@ CREATE TABLE WorkHistory(
     CHECK (workrole IN ('General Manager', 'Administrator', 'Captain', 'Coach', 'Assistant Coach')),
     mandate varchar(20),
     CHECK (mandate IN ('Paid', 'Volunteer')),
-    FOREIGN KEY (personnelID) REFERENCES Personnel(personnelID),
-    FOREIGN KEY (locationID) REFERENCES Locations(locationID)
+    FOREIGN KEY (personnelID) REFERENCES Personnel(personnelID)
+    FOREIGN KEY (locationID) REFERENCES Locations(locationID) 
 );
 
 --@block
 CREATE TABLE Locations (
-    locationID INT AUTO_INCREMENT,
+    locationID INT AUTO_INCREMENT PRIMARY KEY,
     webAddress TEXT,
     phone BIGINT,
     address TEXT,
@@ -96,22 +93,38 @@ CREATE TABLE Locations (
     province VARCHAR(255),
     locationType VARCHAR(255),
     CHECK (locationType IN ('Head', 'Branch'))
-    PRIMARY KEY (locationID),
     -- Head location has: the General manager, deputy manager, treasurer, secretary, and one or more administrators
 );
 
 --@block
 -- This has a bunch of shit that I have no clue how to enforce
 CREATE TABLE Payments(
-    paymentID int AUTO_INCREMENT,
+    paymentID int AUTO_INCREMENT PRIMARY KEY,
     memberID int,
     paymentDate date,
     paymentAmount decimal(10,2),
     paymentMethod varchar(100),
     CHECK (paymentMethod IN ('Cash', 'Credit Card', 'Debit Card')),
     FOREIGN KEY (memberID) REFERENCES ClubMembers(MemberID),
-    PRIMARY KEY (paymentID)
 )
+
+
+CREATE TABLE Teams (
+    teamID INT AUTO_INCREMENT PRIMARY KEY,
+    teamName VARCHAR(255) NOT NULL,
+    maxPlayers INT,
+    category VARCHAR(255),
+    status VARCHAR(255),
+    playingAt INT,
+    coachedBy INT,
+    FOREIGN KEY (playingAt) REFERENCES Locations(locationID),
+    FOREIGN KEY (coachedBy) REFERENCES Personnel(personnelID),
+);
+
+
+
+
+--@------------------------------------------------------------------------------------------------------------
 --@block
 INSERT INTO Locations (webAddress,phone,address,locationName,maxCapacity,postalCode,city,province,locationType)
 VALUES 
