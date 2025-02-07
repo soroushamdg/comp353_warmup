@@ -4,7 +4,7 @@ CREATE TABLE Personnel (
     personnelID int AUTO_INCREMENT PRIMARY KEY,
     firstName varchar(255),
     lastName varchar(255),
-    locationID int,
+    --@locationID int,
     ssn int NOT NULL,
     medicareNO int,
     dob date,
@@ -15,7 +15,7 @@ CREATE TABLE Personnel (
     city varchar(255),
     provinceCode varchar(2),
     CONSTRAINT UC_Personnel UNIQUE (ssn, medicareNO),
-    FOREIGN KEY (locationID) REFERENCES Locations(locationID)
+    --@FOREIGN KEY (locationID) REFERENCES Locations(locationID)
 );
 
 --@block
