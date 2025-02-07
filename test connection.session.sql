@@ -20,8 +20,8 @@ CREATE TABLE Personnel (
 
 --@block
 CREATE TABLE FamilyMembers (
-    FamilyMemberID int AUTO_INCREMENT PRIMARY KEY,
-    LocationID int,
+    familyMemberID int AUTO_INCREMENT PRIMARY KEY,
+    locationID int,
     firstName varchar(255),
     lastName varchar(255),
     ssn INT NOT NULL,
@@ -34,16 +34,16 @@ CREATE TABLE FamilyMembers (
     city varchar(255),
     provinceCode varchar(2),
     CONSTRAINT UC_FamilyMembers UNIQUE (ssn, medicareNo),
-    FOREIGN KEY (LocationID) REFERENCES Locations(LocationID),
+    FOREIGN KEY (locationID) REFERENCES Locations(locationID),
 );
 
 --@block
 -- I need to enfore age constraints on the club members, which should be actively
 -- checked by comparing DOB to current date
 CREATE TABLE ClubMembers (
-    MemberID int AUTO_INCREMENT PRIMARY KEY,
-    LocationID int,
-    FamilyMemberID int,
+    memberID int AUTO_INCREMENT PRIMARY KEY,
+    locationID int,
+    familyMemberID int,
     relationship varchar(100) NOT NULL,
     firstName varchar(255),
     lastName varchar(255),
@@ -63,8 +63,8 @@ CREATE TABLE ClubMembers (
     CHECK (status IN ('Active', 'Inactive')),
     CHECK (relationship IN ('Father', 'Mother', 'Grandfather', 'Grandmother', 'Tutor', 'Partner', 'Friend', 'Other')),
     CONSTRAINT UC_ClubMembers UNIQUE (ssn, medicareNo),
-    FOREIGN KEY (LocationID) REFERENCES Locations(LocationID),
-    FOREIGN KEY (FamilyMemberID) REFERENCES FamilyMembers(FamilyMemberID),
+    FOREIGN KEY (locationID) REFERENCES Locations(locationID),
+    FOREIGN KEY (familyMemberID) REFERENCES FamilyMembers(familyMemberID),
 );
 --@block
 CREATE TABLE WorkHistory(
