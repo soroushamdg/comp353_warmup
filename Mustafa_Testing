@@ -1,0 +1,149 @@
+Testing 
+
+
+1 - Insert tables in order 
+
+CREATE TABLE Personnel (
+    personnel_id INT AUTO_INCREMENT PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    dob DATE,
+    ssn VARCHAR(15) UNIQUE,
+    medicare_card VARCHAR(15) UNIQUE,
+    phone_number VARCHAR(15),
+    address VARCHAR(255),
+    city VARCHAR(100),
+    province VARCHAR(100),
+    postal_code VARCHAR(10),
+    email VARCHAR(100),
+    role ENUM('General Manager', 'Deputy Manager', 'Administrator', 'Coach', 'Assistant Coach', 'Other'),
+    mandate ENUM('Volunteer', 'Paid'),
+    location_id INT,
+    start_date DATE,
+    end_date DATE
+);
+
+CREATE TABLE Locations (
+    location_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255),
+    address VARCHAR(255),
+    city VARCHAR(100),
+    province VARCHAR(100),
+    postal_code VARCHAR(10),
+    phone_number VARCHAR(15),
+    web_address VARCHAR(100),
+    type ENUM('Head', 'Branch'),
+    capacity INT CHECK (capacity >= 12),  
+    manager_id INT,
+    general_manager_id INT,
+    FOREIGN KEY (manager_id) REFERENCES Personnel(personnel_id),
+    FOREIGN KEY (general_manager_id) REFERENCES Personnel(personnel_id)
+);
+
+
+CREATE TABLE FamilyMembers (
+    family_member_id INT AUTO_INCREMENT PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    dob DATE,
+    ssn VARCHAR(15) UNIQUE,
+    medicare_card VARCHAR(15) UNIQUE,
+    phone_number VARCHAR(15),
+    address VARCHAR(255),
+    city VARCHAR(100),
+    province VARCHAR(100),
+    postal_code VARCHAR(10),
+    email VARCHAR(100),
+    location_id INT,
+    FOREIGN KEY (location_id) REFERENCES Locations(location_id)
+);
+
+CREATE TABLE ClubMembers (
+    club_member_number INT AUTO_INCREMENT PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    dob DATE,
+    height INT,
+    weight INT,
+    ssn VARCHAR(15) UNIQUE,
+    medicare_card VARCHAR(15) UNIQUE,
+    phone_number VARCHAR(15),
+    address VARCHAR(255),
+    city VARCHAR(100),
+    province VARCHAR(100),
+    postal_code VARCHAR(10),
+    family_member_id INT,
+    status ENUM('Active', 'Inactive'),
+    FOREIGN KEY (family_member_id) REFERENCES FamilyMembers(family_member_id)
+);
+
+CREATE TABLE Payments (
+    payment_id INT AUTO_INCREMENT PRIMARY KEY,
+    club_member_number INT,
+    membership_period INT,
+    payment_date DATE,
+    amount DECIMAL(10, 2),
+    method ENUM('Cash', 'Debit', 'Credit'),
+    FOREIGN KEY (club_member_number) REFERENCES ClubMembers(club_member_number)
+);
+
+CREATE TABLE Activity (
+    activity_id INT AUTO_INCREMENT PRIMARY KEY,
+    type ENUM('Tournament', 'Training', 'Practice', 'Social', 'Other'),
+    date DATE,
+    personnel_id INT,
+    max_participants INT,
+    FOREIGN KEY (personnel_id) REFERENCES Personnel(personnel_id)
+);
+
+CREATE TABLE ActivityRegistrations (
+    activity_id INT,
+    club_member_number INT,
+    FOREIGN KEY (activity_id) REFERENCES Activity(activity_id),
+    FOREIGN KEY (club_member_number) REFERENCES ClubMembers(club_member_number),
+    PRIMARY KEY (activity_id, club_member_number)
+);
+
+2 - Populate the tables 
+
+INSERT INTO Personnel (first_name, last_name, dob, ssn, medicare_card, phone_number, address, city, province, postal_code, email, role, mandate, location_id, start_date, end_date)
+VALUES 
+('John', 'Doe', '1985-03-25', '123-45-6789', 'A123456789', '123-456-7890', '123 Street', 'Montreal', 'Quebec', 'H1A 2B3', 'john.doe@email.com', 'General Manager', 'Paid', NULL, '2022-01-01', NULL),
+('Jane', 'Smith', '1990-07-15', '987-65-4321', 'B987654321', '987-654-3210', '456 Avenue', 'Montreal', 'Quebec', 'H2B 3C4', 'jane.smith@email.com', 'Coach', 'Volunteer', NULL, '2023-03-01', NULL),
+('Mark', 'Johnson', '1978-11-05', '567-89-0123', 'C123987654', '234-567-8901', '789 Boulevard', 'Laval', 'Quebec', 'H3C 4D5', 'mark.johnson@email.com', 'Administrator', 'Paid', NULL, '2021-05-10', NULL);
+
+INSERT INTO Locations (name, address, city, province, postal_code, phone_number, web_address, type, capacity, manager_id, general_manager_id)
+VALUES 
+('Head Office', '123 Club Road', 'Montreal', 'Quebec', 'H1A 1A1', '514-123-4567', 'www.myvc.club', 'Head', 50, 1, 1),
+('Branch 1', '456 Branch St', 'Laval', 'Quebec', 'H2B 2B2', '450-123-4567', 'www.myvc-laval.club', 'Branch', 30, 2, 1);
+
+INSERT INTO FamilyMembers (first_name, last_name, dob, ssn, medicare_card, phone_number, address, city, province, postal_code, email, location_id)
+VALUES 
+('Alice', 'Brown', '1980-04-11', '246-80-1357', 'D123456789', '514-567-8901', '100 Maple St', 'Montreal', 'Quebec', 'H1A 3B4', 'alice.brown@email.com', 1),
+('Bob', 'Davis', '1975-01-30', '135-79-2468', 'E987654321', '450-987-6543', '200 Oak St', 'Laval', 'Quebec', 'H2B 4C5', 'bob.davis@email.com', 2);
+
+INSERT INTO ClubMembers (first_name, last_name, dob, height, weight, ssn, medicare_card, phone_number, address, city, province, postal_code, family_member_id, status)
+VALUES 
+('Charlie', 'Brown', '2007-03-18', 160, 50, '345-67-8901', 'F123456789', '514-678-9012', '101 Birch St', 'Montreal', 'Quebec', 'H1A 4C6', 1, 'Active'),
+('David', 'Davis', '2005-08-22', 170, 65, '543-21-0987', 'G987654321', '450-876-5432', '202 Pine St', 'Laval', 'Quebec', 'H2B 5D7', 2, 'Inactive');
+
+INSERT INTO Payments (club_member_number, membership_period, payment_date, amount, method)
+VALUES 
+(1, 2024, '2024-01-01', 100.00, 'Credit'),
+(2, 2024, '2024-02-15', 100.00, 'Debit');
+
+INSERT INTO Activity (type, date, personnel_id, max_participants)
+VALUES 
+('Training', '2024-02-10', 2, 20),
+('Tournament', '2024-02-20', 1, 12);
+
+INSERT INTO ActivityRegistrations (activity_id, club_member_number)
+VALUES 
+(1, 1),
+(2, 1);
+
+3 - Testing done
+
+Ensured that there can be a minimum of 12 players in a location and inserted data into each of the tables without any issues, ensuring the data model works as expected. 
+However, there are a few things still to work on: ensuring only one location is marked as "Head," checking if the club can operate (i.e., verifying a Head location exists with the proper personnel), and pruning family members who aren’t linked to any club members. 
+Additionally, I need to create procedures for adding family members without specifying the ID and for removing any family members who no longer have relatives at the club.
