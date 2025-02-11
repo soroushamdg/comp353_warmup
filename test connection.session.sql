@@ -1,11 +1,11 @@
-
+f
 --@block
 CREATE TABLE Personnel (
     personnelID int AUTO_INCREMENT PRIMARY KEY,
-    firstName varchar(255),
-    lastName varchar(255),
-    --@locationID int,
+    firstName varchar(255) NOT NULL,
+    lastName varchar(255) NOT NULL,
     ssn int NOT NULL,
+    locationID int,
     medicareNO int,
     dob date,
     email varchar(255),
@@ -15,7 +15,7 @@ CREATE TABLE Personnel (
     city varchar(255),
     provinceCode varchar(2),
     CONSTRAINT UC_Personnel UNIQUE (ssn, medicareNO),
-    --@FOREIGN KEY (locationID) REFERENCES Locations(locationID)
+    @FOREIGN KEY (locationID) REFERENCES Locations(locationID)
 );
 
 --@block
