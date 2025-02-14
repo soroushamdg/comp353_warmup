@@ -3,6 +3,7 @@ Testing
 
 1 - Insert tables in order 
 
+
 CREATE TABLE Personnel (
     personnel_id INT AUTO_INCREMENT PRIMARY KEY,
     first_name VARCHAR(100),
@@ -39,7 +40,6 @@ CREATE TABLE Locations (
     FOREIGN KEY (manager_id) REFERENCES Personnel(personnel_id),
     FOREIGN KEY (general_manager_id) REFERENCES Personnel(personnel_id)
 );
-
 
 CREATE TABLE FamilyMembers (
     family_member_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -104,6 +104,74 @@ CREATE TABLE ActivityRegistrations (
     PRIMARY KEY (activity_id, club_member_number)
 );
 
+
+
+-- Changing the delimiter from ';' to '//' to not get confused 
+DELIMITER // 
+
+-- Ensure only one location is marked as 'Head'
+CREATE TRIGGER enforce_single_head BEFORE INSERT ON Locations
+FOR EACH ROW
+BEGIN
+    IF NEW.type = 'Head' THEN
+        IF (SELECT COUNT(*) FROM Locations WHERE type = 'Head') > 0 THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'There can only be one Head location.';
+        END IF;
+    END IF;
+END //
+
+-- Check if the club can operate (head location and general manager must exist)
+CREATE PROCEDURE CheckClubOperation()
+BEGIN
+    DECLARE head_count INT;
+    DECLARE personnel_count INT;
+
+    SELECT COUNT(*) INTO head_count FROM Locations WHERE type = 'Head';
+    SELECT COUNT(*) INTO personnel_count FROM Personnel WHERE role = 'General Manager';
+
+    IF head_count = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'The club cannot operate without a Head location.';
+    END IF;
+
+    IF personnel_count = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'The club cannot operate without a General Manager.';
+    END IF;
+END //
+
+-- Procedure to add a family member without specifying an ID
+CREATE PROCEDURE AddFamilyMember(
+    IN p_first_name VARCHAR(100),
+    IN p_last_name VARCHAR(100),
+    IN p_dob DATE,
+    IN p_ssn VARCHAR(15),
+    IN p_medicare_card VARCHAR(15),
+    IN p_phone_number VARCHAR(15),
+    IN p_address VARCHAR(255),
+    IN p_city VARCHAR(100),
+    IN p_province VARCHAR(100),
+    IN p_postal_code VARCHAR(10),
+    IN p_email VARCHAR(100),
+    IN p_location_id INT
+)
+
+BEGIN
+    INSERT INTO FamilyMembers (first_name, last_name, dob, ssn, medicare_card, phone_number, address, city, province, postal_code, email, location_id)
+    VALUES (p_first_name, p_last_name, p_dob, p_ssn, p_medicare_card, p_phone_number, p_address, p_city, p_province, p_postal_code, p_email, p_location_id);
+END //
+
+-- Procedure to remove family members who are no longer linked to club members
+CREATE PROCEDURE PruneUnlinkedFamilyMembers()
+BEGIN
+    DELETE FROM FamilyMembers
+    WHERE family_member_id NOT IN (SELECT DISTINCT family_member_id FROM ClubMembers);
+END //
+
+DELIMITER ;
+
+
 2 - Populate the tables 
 
 INSERT INTO Personnel (first_name, last_name, dob, ssn, medicare_card, phone_number, address, city, province, postal_code, email, role, mandate, location_id, start_date, end_date)
@@ -144,6 +212,5 @@ VALUES
 
 3 - Testing done
 
-Ensured that there can be a minimum of 12 players in a location and inserted data into each of the tables without any issues, ensuring the data model works as expected. 
-However, there are a few things still to work on: ensuring only one location is marked as "Head," checking if the club can operate (i.e., verifying a Head location exists with the proper personnel), and pruning family members who aren’t linked to any club members. 
-Additionally, I need to create procedures for adding family members without specifying the ID and for removing any family members who no longer have relatives at the club.
+Ensured that there can be a minimum of 12 players in a location and inserted data into each of the tables without any issues, ensuring the data model works as expected. Tested the procedures.
+
