@@ -1,116 +1,110 @@
-Testing 
-
-
-1 - Insert tables in order 
-
+-- Create Tables
 
 CREATE TABLE Personnel (
-    personnel_id INT AUTO_INCREMENT PRIMARY KEY,
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
+    personnelId INT AUTO_INCREMENT PRIMARY KEY,
+    firstName VARCHAR(100),
+    lastName VARCHAR(100),
     dob DATE,
     ssn VARCHAR(15) UNIQUE,
-    medicare_card VARCHAR(15) UNIQUE,
-    phone_number VARCHAR(15),
+    medicareCard VARCHAR(15) UNIQUE,
+    phoneNumber VARCHAR(15),
     address VARCHAR(255),
     city VARCHAR(100),
     province VARCHAR(100),
-    postal_code VARCHAR(10),
+    postalCode VARCHAR(10),
     email VARCHAR(100),
     role ENUM('General Manager', 'Deputy Manager', 'Administrator', 'Coach', 'Assistant Coach', 'Other'),
     mandate ENUM('Volunteer', 'Paid'),
-    location_id INT,
-    start_date DATE,
-    end_date DATE
+    locationId INT,
+    startDate DATE,
+    endDate DATE
 );
 
 CREATE TABLE Locations (
-    location_id INT AUTO_INCREMENT PRIMARY KEY,
+    locationId INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255),
     address VARCHAR(255),
     city VARCHAR(100),
     province VARCHAR(100),
-    postal_code VARCHAR(10),
-    phone_number VARCHAR(15),
-    web_address VARCHAR(100),
+    postalCode VARCHAR(10),
+    phoneNumber VARCHAR(15),
+    webAddress VARCHAR(100),
     type ENUM('Head', 'Branch'),
-    capacity INT CHECK (capacity >= 12),  
-    manager_id INT,
-    general_manager_id INT,
-    FOREIGN KEY (manager_id) REFERENCES Personnel(personnel_id),
-    FOREIGN KEY (general_manager_id) REFERENCES Personnel(personnel_id)
+    capacity INT CHECK (capacity >= 12),
+    managerId INT UNIQUE,
+    generalManagerId INT UNIQUE,
+    FOREIGN KEY (managerId) REFERENCES Personnel(personnelId),
+    FOREIGN KEY (generalManagerId) REFERENCES Personnel(personnelId)
 );
 
 CREATE TABLE FamilyMembers (
-    family_member_id INT AUTO_INCREMENT PRIMARY KEY,
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
+    familyMemberId INT AUTO_INCREMENT PRIMARY KEY,
+    firstName VARCHAR(100),
+    lastName VARCHAR(100),
     dob DATE,
     ssn VARCHAR(15) UNIQUE,
-    medicare_card VARCHAR(15) UNIQUE,
-    phone_number VARCHAR(15),
+    medicareCard VARCHAR(15) UNIQUE,
+    phoneNumber VARCHAR(15),
     address VARCHAR(255),
     city VARCHAR(100),
     province VARCHAR(100),
-    postal_code VARCHAR(10),
+    postalCode VARCHAR(10),
     email VARCHAR(100),
-    location_id INT,
-    FOREIGN KEY (location_id) REFERENCES Locations(location_id)
+    locationId INT,
+    FOREIGN KEY (locationId) REFERENCES Locations(locationId)
 );
 
 CREATE TABLE ClubMembers (
-    club_member_number INT AUTO_INCREMENT PRIMARY KEY,
-    first_name VARCHAR(100),
-    last_name VARCHAR(100),
+    clubMemberNumber INT AUTO_INCREMENT PRIMARY KEY,
+    firstName VARCHAR(100),
+    lastName VARCHAR(100),
     dob DATE,
     height INT,
     weight INT,
     ssn VARCHAR(15) UNIQUE,
-    medicare_card VARCHAR(15) UNIQUE,
-    phone_number VARCHAR(15),
+    medicareCard VARCHAR(15) UNIQUE,
+    phoneNumber VARCHAR(15),
     address VARCHAR(255),
     city VARCHAR(100),
     province VARCHAR(100),
-    postal_code VARCHAR(10),
-    family_member_id INT,
+    postalCode VARCHAR(10),
+    familyMemberId INT,
     status ENUM('Active', 'Inactive'),
-    FOREIGN KEY (family_member_id) REFERENCES FamilyMembers(family_member_id)
+    FOREIGN KEY (familyMemberId) REFERENCES FamilyMembers(familyMemberId)
 );
 
 CREATE TABLE Payments (
-    payment_id INT AUTO_INCREMENT PRIMARY KEY,
-    club_member_number INT,
-    membership_period INT,
-    payment_date DATE,
+    paymentId INT AUTO_INCREMENT PRIMARY KEY,
+    clubMemberNumber INT,
+    membershipPeriod INT,
+    paymentDate DATE,
     amount DECIMAL(10, 2),
     method ENUM('Cash', 'Debit', 'Credit'),
-    FOREIGN KEY (club_member_number) REFERENCES ClubMembers(club_member_number)
+    FOREIGN KEY (clubMemberNumber) REFERENCES ClubMembers(clubMemberNumber)
 );
 
 CREATE TABLE Activity (
-    activity_id INT AUTO_INCREMENT PRIMARY KEY,
+    activityId INT AUTO_INCREMENT PRIMARY KEY,
     type ENUM('Tournament', 'Training', 'Practice', 'Social', 'Other'),
     date DATE,
-    personnel_id INT,
-    max_participants INT,
-    FOREIGN KEY (personnel_id) REFERENCES Personnel(personnel_id)
+    personnelId INT,
+    maxParticipants INT,
+    FOREIGN KEY (personnelId) REFERENCES Personnel(personnelId)
 );
 
 CREATE TABLE ActivityRegistrations (
-    activity_id INT,
-    club_member_number INT,
-    FOREIGN KEY (activity_id) REFERENCES Activity(activity_id),
-    FOREIGN KEY (club_member_number) REFERENCES ClubMembers(club_member_number),
-    PRIMARY KEY (activity_id, club_member_number)
+    activityId INT,
+    clubMemberNumber INT,
+    FOREIGN KEY (activityId) REFERENCES Activity(activityId),
+    FOREIGN KEY (clubMemberNumber) REFERENCES ClubMembers(clubMemberNumber),
+    PRIMARY KEY (activityId, clubMemberNumber)
 );
 
-
-
--- Changing the delimiter from ';' to '//' to not get confused 
-DELIMITER // 
+-- Change delimiter from ';' to '//' to not get confused
+DELIMITER //
 
 -- Ensure only one location is marked as 'Head'
-CREATE TRIGGER enforce_single_head BEFORE INSERT ON Locations
+CREATE TRIGGER enforceSingleHead BEFORE INSERT ON Locations
 FOR EACH ROW
 BEGIN
     IF NEW.type = 'Head' THEN
@@ -121,96 +115,150 @@ BEGIN
     END IF;
 END //
 
--- Check if the club can operate (head location and general manager must exist)
-CREATE PROCEDURE CheckClubOperation()
+-- Check if the club can operate (head location, general manager, and at least 1 administrator must exist)
+CREATE PROCEDURE checkClubOperation()
 BEGIN
-    DECLARE head_count INT;
-    DECLARE personnel_count INT;
+    DECLARE headCount INT;
+    DECLARE personnelCount INT;
+    DECLARE adminCount INT;
 
-    SELECT COUNT(*) INTO head_count FROM Locations WHERE type = 'Head';
-    SELECT COUNT(*) INTO personnel_count FROM Personnel WHERE role = 'General Manager';
-
-    IF head_count = 0 THEN
+    -- Check if there is at least one head location
+    SELECT COUNT(*) INTO headCount FROM Locations WHERE type = 'Head';
+    IF headCount = 0 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'The club cannot operate without a Head location.';
     END IF;
 
-    IF personnel_count = 0 THEN
+    -- Check if there is at least one general manager
+    SELECT COUNT(*) INTO personnelCount FROM Personnel WHERE role = 'General Manager';
+    IF personnelCount = 0 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'The club cannot operate without a General Manager.';
+    END IF;
+
+    -- Check if there is at least one administrator
+    SELECT COUNT(*) INTO adminCount FROM Personnel WHERE role = 'Administrator';
+    IF adminCount = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'The club cannot operate without at least one Administrator.';
     END IF;
 END //
 
 -- Procedure to add a family member without specifying an ID
-CREATE PROCEDURE AddFamilyMember(
-    IN p_first_name VARCHAR(100),
-    IN p_last_name VARCHAR(100),
-    IN p_dob DATE,
-    IN p_ssn VARCHAR(15),
-    IN p_medicare_card VARCHAR(15),
-    IN p_phone_number VARCHAR(15),
-    IN p_address VARCHAR(255),
-    IN p_city VARCHAR(100),
-    IN p_province VARCHAR(100),
-    IN p_postal_code VARCHAR(10),
-    IN p_email VARCHAR(100),
-    IN p_location_id INT
+CREATE PROCEDURE addFamilyMember(
+    IN pFirstName VARCHAR(100),
+    IN pLastName VARCHAR(100),
+    IN pDob DATE,
+    IN pSsn VARCHAR(15),
+    IN pMedicareCard VARCHAR(15),
+    IN pPhoneNumber VARCHAR(15),
+    IN pAddress VARCHAR(255),
+    IN pCity VARCHAR(100),
+    IN pProvince VARCHAR(100),
+    IN pPostalCode VARCHAR(10),
+    IN pEmail VARCHAR(100),
+    IN pLocationId INT
 )
-
 BEGIN
-    INSERT INTO FamilyMembers (first_name, last_name, dob, ssn, medicare_card, phone_number, address, city, province, postal_code, email, location_id)
-    VALUES (p_first_name, p_last_name, p_dob, p_ssn, p_medicare_card, p_phone_number, p_address, p_city, p_province, p_postal_code, p_email, p_location_id);
+    INSERT INTO FamilyMembers (firstName, lastName, dob, ssn, medicareCard, phoneNumber, address, city, province, postalCode, email, locationId)
+    VALUES (pFirstName, pLastName, pDob, pSsn, pMedicareCard, pPhoneNumber, pAddress, pCity, pProvince, pPostalCode, pEmail, pLocationId);
 END //
 
 -- Procedure to remove family members who are no longer linked to club members
-CREATE PROCEDURE PruneUnlinkedFamilyMembers()
+CREATE PROCEDURE pruneUnlinkedFamilyMembers()
 BEGIN
     DELETE FROM FamilyMembers
-    WHERE family_member_id NOT IN (SELECT DISTINCT family_member_id FROM ClubMembers);
-END //
+    WHERE familyMemberId IN (
+        SELECT fm.familyMemberId
+        FROM FamilyMembers fm
+        LEFT JOIN ClubMembers cm ON fm.familyMemberId = cm.familyMemberId
+        WHERE cm.familyMemberId IS NULL
+    );
+END;
+
 
 DELIMITER ;
 
+-- Populating the tables
 
-2 - Populate the tables 
-
-INSERT INTO Personnel (first_name, last_name, dob, ssn, medicare_card, phone_number, address, city, province, postal_code, email, role, mandate, location_id, start_date, end_date)
+-- Personnel
+INSERT INTO Personnel (firstName, lastName, dob, ssn, medicareCard, phoneNumber, address, city, province, postalCode, email, role, mandate, locationId, startDate, endDate)
 VALUES 
 ('John', 'Doe', '1985-03-25', '123-45-6789', 'A123456789', '123-456-7890', '123 Street', 'Montreal', 'Quebec', 'H1A 2B3', 'john.doe@email.com', 'General Manager', 'Paid', NULL, '2022-01-01', NULL),
 ('Jane', 'Smith', '1990-07-15', '987-65-4321', 'B987654321', '987-654-3210', '456 Avenue', 'Montreal', 'Quebec', 'H2B 3C4', 'jane.smith@email.com', 'Coach', 'Volunteer', NULL, '2023-03-01', NULL),
 ('Mark', 'Johnson', '1978-11-05', '567-89-0123', 'C123987654', '234-567-8901', '789 Boulevard', 'Laval', 'Quebec', 'H3C 4D5', 'mark.johnson@email.com', 'Administrator', 'Paid', NULL, '2021-05-10', NULL);
 
-INSERT INTO Locations (name, address, city, province, postal_code, phone_number, web_address, type, capacity, manager_id, general_manager_id)
+-- Locations
+INSERT INTO Locations (name, address, city, province, postalCode, phoneNumber, webAddress, type, capacity, managerId, generalManagerId)
 VALUES 
 ('Head Office', '123 Club Road', 'Montreal', 'Quebec', 'H1A 1A1', '514-123-4567', 'www.myvc.club', 'Head', 50, 1, 1),
-('Branch 1', '456 Branch St', 'Laval', 'Quebec', 'H2B 2B2', '450-123-4567', 'www.myvc-laval.club', 'Branch', 30, 2, 1);
+('Branch 1', '456 Branch St', 'Laval', 'Quebec', 'H2B 2B2', '450-123-4567', 'www.myvc-laval.club', 'Branch', 30, 2, 2);
 
-INSERT INTO FamilyMembers (first_name, last_name, dob, ssn, medicare_card, phone_number, address, city, province, postal_code, email, location_id)
+-- FamilyMembers
+INSERT INTO FamilyMembers (firstName, lastName, dob, ssn, medicareCard, phoneNumber, address, city, province, postalCode, email, locationId)
 VALUES 
 ('Alice', 'Brown', '1980-04-11', '246-80-1357', 'D123456789', '514-567-8901', '100 Maple St', 'Montreal', 'Quebec', 'H1A 3B4', 'alice.brown@email.com', 1),
 ('Bob', 'Davis', '1975-01-30', '135-79-2468', 'E987654321', '450-987-6543', '200 Oak St', 'Laval', 'Quebec', 'H2B 4C5', 'bob.davis@email.com', 2);
 
-INSERT INTO ClubMembers (first_name, last_name, dob, height, weight, ssn, medicare_card, phone_number, address, city, province, postal_code, family_member_id, status)
+-- ClubMembers
+INSERT INTO ClubMembers (firstName, lastName, dob, height, weight, ssn, medicareCard, phoneNumber, address, city, province, postalCode, familyMemberId, status)
 VALUES 
 ('Charlie', 'Brown', '2007-03-18', 160, 50, '345-67-8901', 'F123456789', '514-678-9012', '101 Birch St', 'Montreal', 'Quebec', 'H1A 4C6', 1, 'Active'),
 ('David', 'Davis', '2005-08-22', 170, 65, '543-21-0987', 'G987654321', '450-876-5432', '202 Pine St', 'Laval', 'Quebec', 'H2B 5D7', 2, 'Inactive');
 
-INSERT INTO Payments (club_member_number, membership_period, payment_date, amount, method)
+-- Payments
+INSERT INTO Payments (clubMemberNumber, membershipPeriod, paymentDate, amount, method)
 VALUES 
 (1, 2024, '2024-01-01', 100.00, 'Credit'),
 (2, 2024, '2024-02-15', 100.00, 'Debit');
 
-INSERT INTO Activity (type, date, personnel_id, max_participants)
+-- Activity
+INSERT INTO Activity (type, date, personnelId, maxParticipants)
 VALUES 
 ('Training', '2024-02-10', 2, 20),
 ('Tournament', '2024-02-20', 1, 12);
 
-INSERT INTO ActivityRegistrations (activity_id, club_member_number)
+-- ActivityRegistrations
+INSERT INTO ActivityRegistrations (activityId, clubMemberNumber)
 VALUES 
 (1, 1),
 (2, 1);
 
-3 - Testing done
 
-Ensured that there can be a minimum of 12 players in a location and inserted data into each of the tables without any issues, ensuring the data model works as expected. Tested the procedures.
+- Testing done
 
+Enforced only head location
+Unique managerID
+Unique generalManagerID
+At least 12 players per team
+There can only be 1 president 
+There must be at least 1 administrator
+Unique SSN
+Unique MedicareCardNum
+
+To  CHECK if club is operational: 
+CALL CheckClubOperation(); 
+
+Add member ex: 
+CALL addFamilyMember(
+    'Emily', 
+    'Green', 
+    '1986-09-12', 
+    '654-32-1098', 
+    'H123456789', 
+    '514-789-0123', 
+    '300 Cedar St', 
+    'Montreal', 
+    'Quebec', 
+    'H1A 5G6', 
+    'emily.green@email.com', 
+    1  -- LocationId (replace with the correct locationId where this family member is associated)
+);
+
+To Prune ex: 
+SELECT fm.familyMemberId, fm.firstName, fm.lastName
+FROM FamilyMembers fm
+LEFT JOIN ClubMembers cm ON fm.familyMemberId = cm.familyMemberId
+WHERE cm.familyMemberId IS NULL;
+
+CALL pruneUnlinkedFamilyMembers()
