@@ -105,7 +105,7 @@ CREATE TABLE Activities(
 CREATE TABLE ActivityRegistrations (
 	activityId INT,
 	clubMemberNumber INT,
-	FOREIGN KEY (activityId) REFERENCES Activity(activityId),
+	FOREIGN KEY (activityId) REFERENCES Activities(activityId),
 	FOREIGN KEY (clubMemberNumber) REFERENCES ClubMembers(clubMemberNumber),
 	PRIMARY KEY (activityId, clubMemberNumber)
 );
