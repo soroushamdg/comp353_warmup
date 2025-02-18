@@ -8,7 +8,7 @@ CREATE TRIGGER check_member_age_before_insert
 BEFORE INSERT ON ClubMembers
 FOR EACH ROW
 BEGIN
-    DECLARE member_age INT;check_member_age_before_insert
+    DECLARE member_age INT; 
    
     -- Calculate age at the time of registration
     SET member_age = TIMESTAMPDIFF(YEAR, NEW.dob, CURDATE());
@@ -20,7 +20,7 @@ BEGIN
     ELSE
         SET NEW.status = 'Active';
     END IF;
-END;
+END //
 
 -- @block Update member statuses
 CREATE EVENT update_member_status
@@ -33,8 +33,7 @@ BEGIN
             WHEN TIMESTAMPDIFF(YEAR, dob, CURDATE()) BETWEEN 11 AND 18 THEN 'Active'
             ELSE 'Inactive'
         END;
-END;
-//
+END //
 -- DELIMITER ;
 
 
@@ -52,8 +51,9 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'SSN already exists';
     END IF;
-END;
+END //
 
+DELIMITER //
 -- @block Check FamilyMembers SSN
 CREATE TRIGGER check_familymember_ssn
 BEFORE INSERT ON FamilyMembers
@@ -64,57 +64,17 @@ BEGIN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'SSN already exists';
     END IF;
-END;
+END
 //
--- DELIMITER ;
+DELIMITER ;
 
 
 
 -- Change delimiter from ';' to '//' to not get confused
--- DELIMITER //
+DELIMITER //
 
 -- Ensure only one location is marked as 'Head'
-CREATE TRIGGER enforceSingleHead BEFORE INSERT ON Locations
-FOR EACH ROW
-BEGIN
-	IF NEW.type = 'Head' THEN
-    	IF (SELECT COUNT(*) FROM Locations WHERE type = 'Head') > 0 THEN
-        	SIGNAL SQLSTATE '45000'
-        	SET MESSAGE_TEXT = 'There can only be one Head location.';
-    	END IF;
-	END IF;
-END //
-
--- Check if the club can operate (head location, general manager, and at least 1 administrator must exist)
-CREATE PROCEDURE checkClubOperation()
-BEGIN
-	
-	DECLARE headCount INT;
-	DECLARE personnelCount INT;
-	DECLARE adminCount INT;
-
-	-- Check if there is at least one head location
-	SELECT COUNT(*) INTO headCount FROM Locations WHERE type = 'Head';
-	IF headCount = 0 THEN
-    	SIGNAL SQLSTATE '45000'
-    	SET MESSAGE_TEXT = 'The club cannot operate without a Head location.';
-	END IF;
-
-	-- Check if there is at least one general manager
-	SELECT COUNT(*) INTO personnelCount FROM Personnel WHERE role = 'General Manager';
-	IF personnelCount = 0 THEN
-    	SIGNAL SQLSTATE '45000'
-    	SET MESSAGE_TEXT = 'The club cannot operate without a General Manager.';
-	END IF;
-
-	-- Check if there is at least one administrator
-	SELECT COUNT(*) INTO adminCount FROM Personnel WHERE role = 'Administrator';
-	IF adminCount = 0 THEN
-    	SIGNAL SQLSTATE '45000'
-    	SET MESSAGE_TEXT = 'The club cannot operate without at least one Administrator.';
-	END IF;
-END //
-
+DELIMITER //
 -- Procedure to add a family member without specifying an ID
 CREATE PROCEDURE addFamilyMember(
 	IN pFirstName VARCHAR(100),
@@ -161,6 +121,98 @@ BEGIN
   );
 END //
 
+-- DELIMITER //
+CREATE TRIGGER enforceSingleHead BEFORE INSERT ON Locations
+FOR EACH ROW
+BEGIN
+	IF NEW.locationType = 'Head' THEN
+    	IF (SELECT COUNT(*) FROM Locations WHERE locationType = 'Head') > 0 THEN
+        	SIGNAL SQLSTATE '45000'
+        	SET MESSAGE_TEXT = 'There can only be one Head location.';
+    	END IF;
+	END IF;
+END //
+
+DELIMITER //
+-- Check if the club can operate (head location, general manager, and at least 1 administrator must exist)
+CREATE PROCEDURE checkClubOperation()
+BEGIN
+	
+	DECLARE headCount INT;
+	DECLARE personnelCount INT;
+	DECLARE adminCount INT;
+
+	-- Check if there is at least one head location
+	SELECT COUNT(*) INTO headCount FROM Locations WHERE type = 'Head';
+	IF headCount = 0 THEN
+    	SIGNAL SQLSTATE '45000'
+    	SET MESSAGE_TEXT = 'The club cannot operate without a Head location.';
+	END IF;
+
+	-- Check if there is at least one general manager
+	SELECT COUNT(*) INTO personnelCount FROM Personnel WHERE role = 'General Manager';
+	IF personnelCount = 0 THEN
+    	SIGNAL SQLSTATE '45000'
+    	SET MESSAGE_TEXT = 'The club cannot operate without a General Manager.';
+	END IF;
+
+	-- Check if there is at least one administrator
+	SELECT COUNT(*) INTO adminCount FROM Personnel WHERE role = 'Administrator';
+	IF adminCount = 0 THEN
+    	SIGNAL SQLSTATE '45000'
+    	SET MESSAGE_TEXT = 'The club cannot operate without at least one Administrator.';
+	END IF;
+END //
+
+
+-- DELIMITER //
+-- Procedure to add a family member without specifying an ID
+CREATE PROCEDURE addFamilyMember(
+	IN pFirstName VARCHAR(100),
+	IN pLastName VARCHAR(100),
+	IN pDob DATE,
+	IN pSsn VARCHAR(15),
+	IN pMedicareCard VARCHAR(15),
+	IN pPhoneNumber VARCHAR(15),
+	IN pAddress VARCHAR(255),
+	IN pCity VARCHAR(100),
+	IN pProvince VARCHAR(100),
+	IN pPostalCode VARCHAR(10),
+	IN pEmail VARCHAR(100),
+	IN pLocationId INT
+)
+BEGIN
+	INSERT INTO FamilyMembers (
+    firstName, 
+    lastName, 
+    dob, 
+    ssn, 
+    medicareCard, 
+    phoneNumber, 
+    address, 
+    city, 
+    province, 
+    postalCode, 
+    email, 
+    locationId
+  )
+	VALUES (
+    pFirstName, 
+    pLastName, 
+    pDob, 
+    pSsn, 
+    pMedicareCard, 
+    pPhoneNumber, 
+    pAddress, 
+    pCity, 
+    pProvince, 
+    pPostalCode, 
+    pEmail, 
+    pLocationId
+  );
+END //
+
+-- DELIMITER //
 -- Procedure to remove family members who are no longer linked to club members
 CREATE PROCEDURE pruneUnlinkedFamilyMembers()
 BEGIN
@@ -171,11 +223,10 @@ BEGIN
     	LEFT JOIN ClubMembers cm ON fm.familyMemberId = cm.familyMemberId
     	WHERE cm.familyMemberId IS NULL
 	);
-END;
+END //
 
 
 -- DELIMITER ;
-
 
 
 
@@ -202,39 +253,13 @@ BEGIN
 	  AND TIMESTAMPDIFF(YEAR, cm.dob, CURDATE()) BETWEEN minAge AND maxAge;
 END //
 
-CREATE PROCEDURE CheckFinancialStatus(
-	IN pClubMemberNumber INT,
-	IN pMembershipPeriod INT,
-	OUT pStatus VARCHAR(10)
-)
-BEGIN
-	DECLARE totalPayment DECIMAL(10,2);
 
-	-- Calculate total amount paid within the first 4 payments
-	SELECT SUM(amount)
-	INTO totalPayment
-	FROM (
-    	SELECT amount
-    	FROM Payments
-    	WHERE clubMemberNumber = pClubMemberNumber
-    	AND membershipPeriod = pMembershipPeriod
-    	ORDER BY paymentDate ASC
-    	LIMIT 4
-	) AS PaymentSummary;
-
-	-- Determine financial status
-	IF totalPayment IS NOT NULL AND totalPayment >= 100 THEN
-    	SET pStatus = 'Active';
-	ELSE
-    	SET pStatus = 'Inactive';
-	END IF;
-END //
 
 -- DELIMITER ;
 
 -- Procedure to create new activity so long as club is operational, personnel responsible exists, and location exists
 
-DELIMITER //
+-- DELIMITER //
 
 CREATE PROCEDURE newActivity(
 	IN pActivityType VARCHAR(100),
@@ -245,15 +270,17 @@ CREATE PROCEDURE newActivity(
 )
 BEGIN
 	
-	CALL CheckClubOperation(); -- will throw an error if club does can’t operate
-
 	DECLARE eventCount INT;
 	DECLARE personnelExists INT;
 	DECLARE locationExists INT;
+	
+    
+    CALL checkClubOperation(); -- will throw an error if club does can’t operate
+
     
 	SELECT COUNT(*) INTO personnelExists
 	FROM Personnel
-	WHERE personnelID = pPersonnelResponsible;
+	WHERE personnelId = pPersonnelResponsible;
     
 	SELECT COUNT(*) INTO locationExists
 	FROM Locations
@@ -408,6 +435,3 @@ BEGIN
 END //
 
 DELIMITER ;
-
-
-
