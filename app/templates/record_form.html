@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - {{ table_name }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="mb-0">{{ title }}</h2>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% for column in columns %}
+                        <div class="mb-3">
+                            <label for="{{ column }}" class="form-label">{{ column }}</label>
+                            {% if column_types[column].startswith('int') %}
+                                <input type="number" class="form-control" id="{{ column }}" name="{{ column }}" 
+                                       value="{{ record[column] if record else '' }}">
+                            {% elif column_types[column].startswith('decimal') or column_types[column].startswith('float') %}
+                                <input type="number" step="any" class="form-control" id="{{ column }}" name="{{ column }}"
+                                       value="{{ record[column] if record else '' }}">
+                            {% elif column_types[column].startswith('date') %}
+                                <input type="date" class="form-control" id="{{ column }}" name="{{ column }}"
+                                       value="{{ record[column] if record else '' }}">
+                            {% elif column_types[column].startswith('datetime') %}
+                                <input type="datetime-local" class="form-control" id="{{ column }}" name="{{ column }}"
+                                       value="{{ record[column] if record else '' }}">
+                            {% elif column_types[column].startswith('text') %}
+                                <textarea class="form-control" id="{{ column }}" name="{{ column }}" rows="3">{{ record[column] if record else '' }}</textarea>
+                            {% else %}
+                                <input type="text" class="form-control" id="{{ column }}" name="{{ column }}"
+                                       value="{{ record[column] if record else '' }}">
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('table_view', table_name=table_name) }}" class="btn btn-secondary">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

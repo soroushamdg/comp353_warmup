@@ -1,0 +1,343 @@
+{% if records %}
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="card-title">Showing {{ (page - 1) * per_page + 1 }} to {{ min(page * per_page, total_records) }} of {{ total_records }} records</h5>
+                <form class="d-flex" method="get">
+                    <input type="text" name="search" class="form-control me-2" placeholder="Search..." value="{{ search }}">
+                    <button type="submit" class="btn btn-outline-primary">Search</button>
+                </form>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            {% for column in column_names %}
+                            <th class="text-white">
+                                <a href="{{ url_for('table_view', table_name=table_name, sort_by=column, sort_order='asc' if sort_by == column and sort_order == 'desc' else 'desc', search=search) }}" class="text-decoration-none text-white">
+                                    {{ column }}
+                                    {% if sort_by == column %}
+                                        <i class="bi bi-sort-{{ 'up' if sort_order == 'asc' else 'down' }}"></i>
+                                    {% endif %}
+                                </a>
+                            </th>
+                            {% endfor %}
+                            <th class="text-white">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for record in records %}
+                        <tr>
+                            {% for column in column_names %}
+                            <td>
+                                {% if column in foreign_key_info %}
+                                    <a href="#" class="text-primary text-decoration-none" 
+                                       onclick="showRecordDetails('{{ foreign_key_info[column]['table'] }}', '{{ record[column] }}')">
+                                        {{ record[column] }}
+                                    </a>
+                                {% else %}
+                                    {{ record[column] }}
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            <td>
+                                <button class="btn btn-sm btn-primary me-1" onclick="editRecord('{{ table_name }}', '{{ record[column_names[0]] }}')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteRecord('{{ table_name }}', '{{ record[column_names[0]] }}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if total_pages > 1 %}
+            <nav aria-label="Page navigation" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% for p in range(1, total_pages + 1) %}
+                    <li class="page-item {% if p == page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('table_view', table_name=table_name, page=p, search=search, sort_by=sort_by, sort_order=sort_order) }}">
+                            {{ p }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Record Details Modal -->
+    <div class="modal fade" id="recordDetailsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Record Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="recordDetailsContent">
+                        <div class="text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Record Modal -->
+    <div class="modal fade" id="editRecordModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Edit Record</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="editRecordForm" method="POST">
+                        {% for column in column_names %}
+                            {% if column not in auto_increment_columns %}
+                            <div class="mb-3">
+                                <label for="edit_{{ column }}" class="form-label">{{ column }}</label>
+                                {% if column_types[column].lower().startswith('date') %}
+                                    <input type="date" class="form-control" id="edit_{{ column }}" name="{{ column }}" required>
+                                {% else %}
+                                    <input type="text" class="form-control" id="edit_{{ column }}" name="{{ column }}" required>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="submitEditRecord()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Record Modal -->
+    <div class="modal fade" id="addRecordModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New Record</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addRecordForm" method="POST">
+                        {% for column in column_names %}
+                            {% if column not in auto_increment_columns %}
+                            <div class="mb-3">
+                                <label for="add_{{ column }}" class="form-label">{{ column }}</label>
+                                {% if column_types[column].lower().startswith('date') %}
+                                    <input type="date" class="form-control" id="add_{{ column }}" name="{{ column }}" required>
+                                {% else %}
+                                    <input type="text" class="form-control" id="add_{{ column }}" name="{{ column }}" required>
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="submitAddRecord()">Add Record</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function formatDate(dateString) {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return dateString;
+        return date.toISOString().split('T')[0];
+    }
+
+    function showRecordDetails(tableName, id) {
+        const modal = new bootstrap.Modal(document.getElementById('recordDetailsModal'));
+        const content = document.getElementById('recordDetailsContent');
+        
+        // Show loading spinner
+        content.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        `;
+        
+        // Show modal
+        modal.show();
+        
+        // Fetch record details
+        fetch(`/table/${tableName}/record/${id}`)
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success' && data.record) {
+                    // Create table to display record details
+                    let html = '<table class="table table-striped">';
+                    html += '<tbody>';
+                    for (const [key, value] of Object.entries(data.record)) {
+                        html += `
+                            <tr>
+                                <th>${key}</th>
+                                <td>${value !== null ? value : '<em>NULL</em>'}</td>
+                            </tr>
+                        `;
+                    }
+                    html += '</tbody></table>';
+                    content.innerHTML = html;
+                } else {
+                    throw new Error(data.message || 'Invalid response format');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                content.innerHTML = `
+                    <div class="alert alert-danger">
+                        Error loading record details: ${error.message}
+                    </div>
+                `;
+            });
+    }
+
+    function editRecord(tableName, id) {
+        const modal = new bootstrap.Modal(document.getElementById('editRecordModal'));
+        const form = document.getElementById('editRecordForm');
+        
+        // Show loading spinner
+        form.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        `;
+        
+        // Show modal
+        modal.show();
+        
+        // Fetch record data
+        fetch(`/table/${tableName}/edit/${id}`)
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.status === 'success' && data.record) {
+                    // Create form fields
+                    let html = '';
+                    for (const [key, value] of Object.entries(data.record)) {
+                        if (!{{ auto_increment_columns|tojson }}.includes(key)) {
+                            const isDateField = {{ column_types|tojson }}[key].toLowerCase().startsWith('date');
+                            const inputType = isDateField ? 'date' : 'text';
+                            const inputValue = isDateField ? formatDate(value) : (value !== null ? value : '');
+                            
+                            html += `
+                                <div class="mb-3">
+                                    <label for="edit_${key}" class="form-label">${key}</label>
+                                    <input type="${inputType}" class="form-control" id="edit_${key}" name="${key}" value="${inputValue}" required>
+                                </div>
+                            `;
+                        }
+                    }
+                    form.innerHTML = html;
+                } else {
+                    throw new Error(data.message || 'Invalid response format');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                form.innerHTML = `
+                    <div class="alert alert-danger">
+                        Error loading record: ${error.message}
+                    </div>
+                `;
+            });
+    }
+
+    function submitEditRecord() {
+        const form = document.getElementById('editRecordForm');
+        const formData = new FormData(form);
+        
+        // Remove auto-increment columns from form data
+        {{ auto_increment_columns|tojson }}.forEach(col => {
+            formData.delete(col);
+        });
+        
+        fetch(form.action, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                location.reload();
+            } else {
+                alert('Error updating record: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error updating record: ' + error.message);
+        });
+    }
+
+    function submitAddRecord() {
+        const form = document.getElementById('addRecordForm');
+        const formData = new FormData(form);
+        
+        // Remove auto-increment columns from form data
+        {{ auto_increment_columns|tojson }}.forEach(col => {
+            formData.delete(col);
+        });
+        
+        fetch(form.action, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                location.reload();
+            } else {
+                alert('Error adding record: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error adding record: ' + error.message);
+        });
+    }
+    </script>
+{% else %}
+    <div class="alert alert-info">
+        <h4 class="alert-heading">No Data Available</h4>
+        <p class="mb-0">This table currently contains no records.</p>
+    </div>
+{% endif %} 

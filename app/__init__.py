@@ -9,10 +9,10 @@ load_dotenv()
 # Initialize Flask app
 app = Flask(__name__)
 
-# Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://zqc353_4@zqc353.encs.concordia.ca:3306/zqc353_4'
+# Configure app
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev')
+app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ECHO'] = True  # Enable SQL query logging
 
 # Initialize SQLAlchemy
 db = SQLAlchemy(app)
