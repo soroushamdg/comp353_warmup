@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Error - Database Connection{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 text-center">
+        <div class="card border-danger">
+            <div class="card-body">
+                <h1 class="card-title text-danger mb-4">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    Database Connection Error
+                </h1>
+                <p class="card-text lead mb-4">{{ error_message }}</p>
+                <div class="alert alert-info">
+                    <h5 class="alert-heading">Troubleshooting Tips:</h5>
+                    <ul class="text-start mb-0">
+                        <li>Check if the database server is running</li>
+                        <li>Verify your database credentials</li>
+                        <li>Ensure you have network connectivity to the database server</li>
+                        <li>Check if your IP address is allowed to connect to the database</li>
+                    </ul>
+                </div>
+                <div class="mt-4">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">Try Again</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
