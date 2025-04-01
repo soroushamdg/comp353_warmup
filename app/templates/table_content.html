@@ -334,6 +334,29 @@
             alert('Error adding record: ' + error.message);
         });
     }
+
+    function deleteRecord(tableName, id) {
+        if (confirm('Are you sure you want to delete this record?')) {
+            fetch(`/table/${tableName}/delete/${id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert('Error deleting record: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error deleting record: ' + error.message);
+            });
+        }
+    }
     </script>
 {% else %}
     <div class="alert alert-info">

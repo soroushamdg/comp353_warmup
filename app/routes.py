@@ -234,15 +234,19 @@ def add_record(table_name):
         if request.method == 'POST':
             # Get column names and types
             cursor.execute(f"SHOW COLUMNS FROM {table_name}")
-            columns = [col['Field'] for col in cursor.fetchall()]
+            columns = cursor.fetchall()
             
-            # Build INSERT query
-            placeholders = ', '.join(['%s'] * len(columns))
-            query = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders})"
+            # Get auto-increment columns
+            auto_increment_columns = [col['Field'] for col in columns if col.get('Extra') == 'auto_increment']
+            
+            # Build INSERT query excluding auto-increment columns
+            insert_columns = [col['Field'] for col in columns if col['Field'] not in auto_increment_columns]
+            placeholders = ', '.join(['%s'] * len(insert_columns))
+            query = f"INSERT INTO {table_name} ({', '.join(insert_columns)}) VALUES ({placeholders})"
             
             # Get values from form, using None for missing fields
             values = []
-            for col in columns:
+            for col in insert_columns:
                 value = request.form.get(col)
                 values.append(None if value is None or value.strip() == '' else value)
             
@@ -257,8 +261,8 @@ def add_record(table_name):
         
         # GET request - show form
         cursor.execute(f"SHOW COLUMNS FROM {table_name}")
-        columns = [col['Field'] for col in cursor.fetchall()]
-        column_types = {col['Field']: col['Type'] for col in cursor.fetchall()}
+        columns = cursor.fetchall()
+        column_types = {col['Field']: col['Type'] for col in columns}
         
         cursor.close()
         conn.close()
@@ -285,15 +289,19 @@ def edit_record(table_name, id):
         if request.method == 'POST':
             # Get column names and types
             cursor.execute(f"SHOW COLUMNS FROM {table_name}")
-            columns = [col['Field'] for col in cursor.fetchall()]
+            columns = cursor.fetchall()
             
-            # Build UPDATE query
-            set_clause = ', '.join([f"{col} = %s" for col in columns])
-            query = f"UPDATE {table_name} SET {set_clause} WHERE {columns[0]} = %s"
+            # Get auto-increment columns
+            auto_increment_columns = [col['Field'] for col in columns if col.get('Extra') == 'auto_increment']
+            
+            # Build UPDATE query excluding auto-increment columns
+            update_columns = [col['Field'] for col in columns if col['Field'] not in auto_increment_columns]
+            set_clause = ', '.join([f"{col} = %s" for col in update_columns])
+            query = f"UPDATE {table_name} SET {set_clause} WHERE {columns[0]['Field']} = %s"
             
             # Get values from form, using None for missing fields
             values = []
-            for col in columns:
+            for col in update_columns:
                 value = request.form.get(col)
                 values.append(None if value is None or value.strip() == '' else value)
             values.append(id)
@@ -359,32 +367,42 @@ def edit_record(table_name, id):
 @app.route('/table/<table_name>/delete/<id>', methods=['POST'])
 def delete_record(table_name, id):
     try:
+        # Get database connection
         conn = get_db_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
         
-        # Get primary key column name
-        cursor.execute(f"SHOW COLUMNS FROM {table_name}")
-        primary_key = cursor.fetchone()[0]
+        # Get the primary key column name
+        cursor.execute(f"SHOW KEYS FROM {table_name} WHERE Key_name = 'PRIMARY'")
+        primary_key = cursor.fetchone()
         
-        # Execute DELETE query
-        cursor.execute(f"DELETE FROM {table_name} WHERE {primary_key} = %s", [id])
-        conn.commit()
-        
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-            return jsonify({
-                'status': 'success',
-                'message': 'Record deleted successfully'
-            })
-        
-        flash('Record deleted successfully', 'success')
-        return redirect(url_for('table_view', table_name=table_name))
-    except Error as e:
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        if not primary_key:
             return jsonify({
                 'status': 'error',
-                'message': str(e)
-            }), 500
-        return render_template('error.html', error=str(e))
+                'message': 'No primary key found for table'
+            })
+        
+        primary_key_column = primary_key['Column_name']  # Use dictionary access
+        
+        # Delete the record
+        cursor.execute(f"DELETE FROM {table_name} WHERE {primary_key_column} = %s", (id,))
+        conn.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Record deleted successfully'
+        })
+        
+    except Exception as e:
+        print(f"Error deleting record: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Database error: {str(e)}'
+        })
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 @app.route('/table/<table_name>/record/<id>')
 def get_record_details(table_name, id):
