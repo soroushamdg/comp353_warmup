@@ -263,3 +263,136 @@ BEGIN
 END //
 
 DELIMITER ;
+
+
+
+
+
+
+-- Addresses
+INSERT INTO Addresses (address, city, province, postalCode) VALUES
+('123 Main St', 'Montreal', 'Quebec', 'H1A 1A1'),
+('456 Elm St', 'Laval', 'Quebec', 'H2B 2B2'),
+('789 Oak St', 'Montreal', 'Quebec', 'H3C 3C3'),
+('101 Pine St', 'Quebec City', 'Quebec', 'G1A 1A1'),
+('202 Maple St', 'Longueuil', 'Quebec', 'J4K 2B3'),
+('303 Birch St', 'Montreal', 'Quebec', 'H4E 4E4'),
+('404 Cedar St', 'Laval', 'Quebec', 'H7L 5N9'),
+('505 Cherry St', 'Quebec City', 'Quebec', 'G2E 5E5'),
+('606 Walnut St', 'Trois-Rivières', 'Quebec', 'G9A 6A6'),
+('707 Pine Ave', 'Sherbrooke', 'Quebec', 'J1H 7T7');
+
+-- People
+INSERT INTO People (sin, medicareNo, dob, firstName, lastName, telephoneNo, email, addressID) VALUES
+('123-45-6789', 'M123456789', '1980-04-12', 'John', 'Doe', '514-123-4567', 'john.doe@email.com', 1),
+('987-65-4321', 'M987654321', '1990-06-22', 'Jane', 'Smith', '450-987-6543', 'jane.smith@email.com', 2),
+('555-22-6677', 'M555667788', '1985-09-15', 'Mark', 'Johnson', '514-222-3333', 'mark.johnson@email.com', 3),
+('666-33-7788', 'M667788990', '1995-11-04', 'Alice', 'Brown', '514-333-4444', 'alice.brown@email.com', 4),
+('777-44-8899', 'M778899112', '1987-02-17', 'David', 'Davis', '450-444-5555', 'david.davis@email.com', 5),
+('888-55-9900', 'M889900223', '2000-03-25', 'Sophia', 'Williams', '514-555-6666', 'sophia.williams@email.com', 6),
+('999-66-0001', 'M990011334', '1998-01-10', 'Benjamin', 'Miller', '450-666-7777', 'benjamin.miller@email.com', 7),
+('000-77-1112', 'M000223445', '1992-07-30', 'Emily', 'Davis', '514-777-8888', 'emily.davis@email.com', 8),
+('111-88-2223', 'M112233556', '1988-05-19', 'Charles', 'Garcia', '450-888-9999', 'charles.garcia@email.com', 9),
+('222-99-3334', 'M223344667', '2001-09-12', 'Olivia', 'Martinez', '514-999-0000', 'olivia.martinez@email.com', 10);
+
+-- Personnel
+INSERT INTO Personnel (generalID) VALUES
+(1), (2), (3), (4), (5);
+
+-- FamilyMembers
+INSERT INTO FamilyMembers (generalID) VALUES
+(6), (7), (8), (9), (10);
+
+-- SecondaryFamMembers
+INSERT INTO SecondaryFamMembers (telephoneNo, firstName, lastName) VALUES
+('514-123-4567', 'Lucas', 'Brown'),
+('450-987-6543', 'Megan', 'Smith'),
+('514-222-3333', 'Oliver', 'Johnson'),
+('514-333-4444', 'Sarah', 'Brown'),
+('450-444-5555', 'Chris', 'Davis');
+
+-- PrimFamSecFamRelationship
+INSERT INTO PrimFamSecFamRelationship (famMemberID, secondaryFamID) VALUES
+(1, 1), (2, 2), (3, 3), (4, 4), (5, 5);
+
+-- ClubMembers
+INSERT INTO ClubMembers (generalID, height, weight, gender) VALUES
+(1, 160, 55, 'M'),
+(2, 170, 60, 'F'),
+(3, 180, 75, 'M'),
+(4, 165, 50, 'F'),
+(5, 175, 68, 'M');
+
+-- ClubMemFamRelationship
+INSERT INTO ClubMemFamRelationship (clubMemberNo, famMemberID, relationship) VALUES
+(1, 1, 'Mother'),
+(2, 2, 'Father'),
+(3, 3, 'Sibling'),
+(4, 4, 'Partner'),
+(5, 5, 'Friend');
+
+-- Locations
+INSERT INTO Locations (locationType, maxCapacity, locationName, addressID, telephoneNo, webAddress) VALUES
+('Head', 100, 'Head Office', 1, '514-123-4567', 'www.myvc-head.com'),
+('Branch', 50, 'Laval Branch', 2, '450-987-6543', 'www.myvc-laval.com'),
+('Branch', 60, 'Montreal East Branch', 3, '514-222-3333', 'www.myvc-east.com'),
+('Branch', 80, 'Quebec City Branch', 4, '450-444-5555', 'www.myvc-qc.com'),
+('Branch', 70, 'Sherbrooke Branch', 5, '514-555-6666', 'www.myvc-sherbrooke.com');
+
+-- PlayingAt
+INSERT INTO PlayingAt (clubMemberNo, locationID) VALUES
+(1, 1), (2, 2), (3, 3), (4, 4), (5, 5);
+
+-- Teams
+INSERT INTO Teams (teamName, captainMemberNo, locationID, gender) VALUES
+('Team A', 1, 1, 'M'),
+('Team B', 2, 2, 'F'),
+('Team C', 3, 3, 'M'),
+('Team D', 4, 4, 'F'),
+('Team E', 5, 5, 'M');
+
+-- Sessions
+INSERT INTO Sessions (locationID, startTime, sessionType) VALUES
+(1, '2025-04-01 09:00:00', 'Training'),
+(2, '2025-04-01 10:00:00', 'Game'),
+(3, '2025-04-02 11:00:00', 'Training'),
+(4, '2025-04-02 12:00:00', 'Game'),
+(5, '2025-04-03 13:00:00', 'Training');
+
+-- TeamFormations
+INSERT INTO TeamFormations (teamName, score, sessionID) VALUES
+('Team A', 3, 1),
+('Team B', 2, 2),
+('Team C', 5, 3),
+('Team D', 4, 4),
+('Team E', 6, 5);
+
+-- FormationEnrollments
+INSERT INTO FormationEnrollments (formationID, clubMemberNo, playerRole) VALUES
+(1, 1, 'Outside Hitter'),
+(2, 2, 'Setter'),
+(3, 3, 'Libero'),
+(4, 4, 'Opposite'),
+(5, 5, 'Middle Blocker');
+
+-- Contracts
+INSERT INTO Contracts (locationID, personnelID, startDate, endDate, mandate, personnelRole) 
+VALUES (1, 1, '2025-01-01', NULL, 'Paid', 'General Manager');
+
+
+-- Payments
+INSERT INTO Payments (clubMemberNo, paymentDate, method, amount) VALUES
+(1, '2025-03-01', 'Credit', 150.00),
+(2, '2025-03-15', 'Debit', 120.00),
+(3, '2025-03-20', 'Cash', 100.00),
+(4, '2025-03-25', 'Credit', 130.00),
+(5, '2025-03-30', 'Debit', 110.00);
+
+-- EmailLogs
+INSERT INTO EmailLogs (senderID, recipientID, messageSubject, messageBody) VALUES
+(1, 2, 'Training Update', 'New training session details available.'),
+(2, 3, 'Tournament Details', 'Tournament information for next week.'),
+(3, 4, 'Team Assignment', 'Your team has been assigned for the upcoming session.'),
+(4, 5, 'General Update', 'General update on club activities this month.'),
+(5, 6, 'Payment Confirmation', 'Your payment has been successfully processed.');
+
