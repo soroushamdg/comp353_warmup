@@ -379,7 +379,6 @@ INSERT INTO FormationEnrollments (formationID, clubMemberNo, playerRole) VALUES
 INSERT INTO Contracts (locationID, personnelID, startDate, endDate, mandate, personnelRole) 
 VALUES (1, 1, '2025-01-01', NULL, 'Paid', 'General Manager');
 
-
 -- Payments
 INSERT INTO Payments (clubMemberNo, paymentDate, method, amount) VALUES
 (1, '2025-03-01', 'Credit', 150.00),
@@ -395,4 +394,5 @@ INSERT INTO EmailLogs (senderID, recipientID, messageSubject, messageBody) VALUE
 (3, 4, 'Team Assignment', 'Your team has been assigned for the upcoming session.'),
 (4, 5, 'General Update', 'General update on club activities this month.'),
 (5, 6, 'Payment Confirmation', 'Your payment has been successfully processed.');
+
 
