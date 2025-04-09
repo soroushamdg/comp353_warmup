@@ -266,6 +266,127 @@ DELIMITER ;
 
 
 
+-- Create a trigger to enforce a maximum of 2 team formations per session
+DELIMITER $$
+
+CREATE TRIGGER check_team_formations_limit
+BEFORE INSERT ON TeamFormations
+FOR EACH ROW
+BEGIN
+    -- Declare a variable to store the count of team formations for the session
+    DECLARE formation_count INT;
+
+    -- Count the number of team formations for the given session ID
+    SELECT COUNT(*)
+    INTO formation_count
+    FROM TeamFormations
+    WHERE sessionID = NEW.sessionID;
+
+    -- If there are already 2 team formations for the session, raise an error
+    IF formation_count >= 2 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot add more than 2 team formations for a single session.';
+    END IF;
+END$$
+
+DELIMITER ;
+
+
+
+
+DELIMITER $$
+
+CREATE TRIGGER trg_validate_formation_time_conflict
+BEFORE INSERT ON FormationEnrollments
+FOR EACH ROW
+BEGIN
+    DECLARE new_session_time DATETIME;
+    DECLARE new_session_date DATE;
+
+    -- Get start time of the session for the new formation
+    SELECT s.startTime, DATE(s.startTime) INTO new_session_time, new_session_date
+    FROM TeamFormations tf
+    JOIN Sessions s ON tf.sessionID = s.sessionID
+    WHERE tf.formationID = NEW.formationID;
+
+    -- Check for time conflicts with other formations the same player is enrolled in
+    IF EXISTS (
+        SELECT 1
+        FROM FormationEnrollments fe
+        JOIN TeamFormations tf2 ON fe.formationID = tf2.formationID
+        JOIN Sessions s2 ON tf2.sessionID = s2.sessionID
+        WHERE fe.clubMemberNo = NEW.clubMemberNo
+          AND DATE(s2.startTime) = new_session_date
+          AND ABS(TIMESTAMPDIFF(MINUTE, s2.startTime, new_session_time)) < 180
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot enroll player: session times are less than 3 hours apart on the same day.';
+    END IF;
+END$$
+
+DELIMITER ;
+
+
+DELIMITER $$
+
+CREATE TRIGGER trg_validate_location_and_gender
+BEFORE INSERT ON FormationEnrollments
+FOR EACH ROW
+BEGIN
+    DECLARE member_location INT;
+    DECLARE team_location INT;
+    DECLARE member_gender CHAR(1);
+    DECLARE team_gender CHAR(1);
+
+    -- Get the club member's location
+    SELECT locationID INTO member_location
+    FROM PlayingAt
+    WHERE clubMemberNo = NEW.clubMemberNo;
+
+    -- Get the team location and gender via the formation
+    SELECT t.locationID, t.gender INTO team_location, team_gender
+    FROM TeamFormations tf
+    JOIN Teams t ON tf.teamName = t.teamName
+    WHERE tf.formationID = NEW.formationID;
+
+    -- Get the club member's gender
+    SELECT gender INTO member_gender
+    FROM ClubMembers
+    WHERE clubMemberNo = NEW.clubMemberNo;
+
+    -- Check for nulls
+    IF member_location IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Club member has no assigned location.';
+    END IF;
+
+    IF member_gender IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Club member has no assigned gender.';
+    END IF;
+
+    IF team_location IS NULL OR team_gender IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Team information is missing for the formation.';
+    END IF;
+
+    -- Check location match
+    IF member_location != team_location THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot enroll player: location mismatch between team and club member.';
+    END IF;
+
+    -- Check gender match
+    IF member_gender != team_gender THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot enroll player: gender mismatch between team and club member.';
+    END IF;
+
+END$$
+
+DELIMITER ;
+
+
 
 
 
