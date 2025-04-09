@@ -105,3 +105,119 @@ SELECT * FROM Personnel
 WHERE personnelID = 1;
 
 
+
+
+
+
+-- Trigger to enforce a single Head location
+CREATE TRIGGER enforceSingleHeadLocation
+BEFORE INSERT ON Locations
+FOR EACH ROW
+BEGIN
+    IF NEW.locationType = 'Head' THEN
+        IF (SELECT COUNT(*) FROM Locations WHERE locationType = 'Head') > 0 THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'There can only be one Head location in the system.';
+        END IF;
+    END IF;
+END //
+
+-- Procedure to assign personnel to a location with roles, mandates, and dates
+CREATE PROCEDURE assignPersonnelToLocation(
+    IN pPersonnelID INT,
+    IN pLocationID INT,
+    IN pStartDate DATE,
+    IN pEndDate DATE,
+    IN pPersonnelRole ENUM('General Manager', 'Deputy Manager', 'Treasurer', 'Secretary', 'Administrator', 'Coach', 'Assistant Coach', 'Other'),
+    IN pMandate ENUM('Volunteer', 'Paid')
+)
+BEGIN
+    -- Insert or update personnel assignment
+    INSERT INTO PersonnelLocationAssignments (personnelID, locationID, startDate, endDate, personnelRole, mandate)
+    VALUES (pPersonnelID, pLocationID, pStartDate, pEndDate, pPersonnelRole, pMandate)
+    ON DUPLICATE KEY UPDATE 
+        startDate = pStartDate,
+        endDate = pEndDate,
+        personnelRole = pPersonnelRole,
+        mandate = pMandate;
+END //
+
+-- Procedure to ensure at least one General Manager at the Head location
+CREATE PROCEDURE enforceGeneralManagerAtHeadLocation()
+BEGIN
+    DECLARE headLocationCount INT;
+    DECLARE gmCount INT;
+
+    -- Check if there is exactly one Head location
+    SELECT COUNT(*) INTO headLocationCount
+    FROM Locations
+    WHERE locationType = 'Head';
+
+    IF headLocationCount != 1 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'There must be exactly one Head location in the system.';
+    END IF;
+
+    -- Ensure at least one General Manager exists at the Head location
+    SELECT COUNT(*) INTO gmCount
+    FROM PersonnelLocationAssignments AS pla
+    JOIN Personnel AS p ON pla.personnelID = p.personnelID
+    WHERE pla.locationID = (SELECT locationID FROM Locations WHERE locationType = 'Head') 
+      AND pla.personnelRole = 'General Manager' 
+      AND (pla.endDate IS NULL OR pla.endDate > CURDATE());
+
+    IF gmCount = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'There must be at least one General Manager at the Head location.';
+    END IF;
+END //
+
+-- Trigger to enforce personnel role at Head location
+CREATE TRIGGER enforceHeadLocationPersonnelRoles
+BEFORE INSERT ON PersonnelLocationAssignments
+FOR EACH ROW
+BEGIN
+    -- Ensure certain roles are only assigned to Head location
+    IF NEW.locationID = (SELECT locationID FROM Locations WHERE locationType = 'Head') THEN
+        IF NEW.personnelRole NOT IN ('General Manager', 'Deputy Manager', 'Treasurer', 'Secretary', 'Administrator') THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Only General Manager, Deputy Manager, Treasurer, Secretary, or Administrator can be assigned to the Head location.';
+        END IF;
+    END IF;
+END //
+
+-- Check if the club can operate: Head location, General Manager, and Administrator required
+CREATE PROCEDURE checkClubOperation()
+BEGIN
+    DECLARE headLocationCount INT;
+    DECLARE personnelCount INT;
+    DECLARE adminCount INT;
+
+    -- Check if there is at least one Head location
+    SELECT COUNT(*) INTO headLocationCount FROM Locations WHERE locationType = 'Head';
+    IF headLocationCount = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'The club cannot operate without a Head location.';
+    END IF;
+
+    -- Check if there is at least one General Manager
+    SELECT COUNT(*) INTO personnelCount FROM PersonnelLocationAssignments AS pla
+    WHERE pla.personnelRole = 'General Manager' 
+      AND pla.endDate IS NULL;
+    IF personnelCount = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'The club cannot operate without a General Manager.';
+    END IF;
+
+    -- Check if there is at least one Administrator
+    SELECT COUNT(*) INTO adminCount FROM PersonnelLocationAssignments AS pla
+    WHERE pla.personnelRole = 'Administrator' 
+      AND pla.endDate IS NULL;
+    IF adminCount = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'The club cannot operate without at least one Administrator.';
+    END IF;
+END //
+
+DELIMITER ;
+
