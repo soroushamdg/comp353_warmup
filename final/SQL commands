@@ -221,3 +221,45 @@ END //
 
 DELIMITER ;
 
+
+
+NEW CONTRACT
+DELIMITER //
+
+CREATE PROCEDURE newContract(
+	IN pPersonnelID INT,
+	IN pLocationID INT,
+	IN pStartDate DATE,
+	IN pRole ENUM('General Manager', 'Deputy Manager', 'Administrator', 'Coach', 'Assisant Coach', 'Other'),
+	IN pMandate ENUM('Volunteer', 'Paid')
+)
+BEGIN
+	DECLARE numActiveContracts INT;
+
+	-- End any current active contracts with different details
+	UPDATE Contracts
+	SET endDate = CURDATE()
+	WHERE personnelID = pPersonnelID
+	AND endDate IS NULL
+	AND (locationID != pLocationID OR personnelRole != pRole OR mandate != pMandate);
+
+	-- Insert new contract
+	INSERT INTO Contracts(personnelID, locationID, startDate, personnelRole, mandate)
+	VALUES (pPersonnelID, pLocationID, pStartDate, pRole, pMandate);
+END //
+
+DELIMITER ;
+
+
+TERMINATE CONTRACT 
+DELIMITER //
+
+CREATE PROCEDURE terminateContract(IN pPersonnelID INT)
+BEGIN
+	UPDATE Contracts
+	SET endDate = CURDATE()
+	WHERE personnelID = pPersonnelID
+	AND endDate IS NULL;
+END //
+
+DELIMITER ;
