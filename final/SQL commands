@@ -357,7 +357,7 @@ DELIMITER ;
 
 
 QUESTION 1 AND 2
-CREATE LOCATION 
+
 
 DELIMITER //
 
@@ -382,7 +382,7 @@ DELIMITER ;
 
 
 
-DELETE LOCATION 
+
 
 DELIMITER //
 
@@ -394,7 +394,7 @@ END //
 DELIMITER ;
 
 
-EDIT LOCATION
+
 
 DELIMITER //
 
@@ -427,7 +427,6 @@ END //
 DELIMITER ;
 
 
-DISPLAY ALL LOCATIONS
 DELIMITER //
 
 CREATE PROCEDURE DisplayLocations()
@@ -440,25 +439,25 @@ END //
 DELIMITER ;
 
 
-CREATE PERSONNEL 
+
 -- Create a Personnel (add to the People table first, then reference it in the Personnel table)
 -- Assuming you already have a person added (let's say generalID = 1)
 INSERT INTO Personnel (generalID)
 VALUES (1);
 
 
-DELETE PERSONNEL
+
 -- Delete a Personnel (assuming personnelID = 1)
 DELETE FROM Personnel
 WHERE personnelID = 1;
 
-EDIT PERSONNEL
+
 -- Edit a Personnel (update generalID, assuming personnelID = 1)
 UPDATE Personnel
 SET generalID = 2  -- Change to a different generalID
 WHERE personnelID = 1;
 
-DISPLAY PERSONNEL
+
 -- Display a Personnel (display personnel with personnelID = 1)
 SELECT * FROM Personnel
 WHERE personnelID = 1;
