@@ -186,36 +186,21 @@ END$$
 DELIMITER ;
 
 
-This trigger checks if there is already a location marked as the "Head" location before inserting a new one.
 DELIMITER $$
 
-CREATE TRIGGER check_head_location
+CREATE TRIGGER check_head_location_and_personnel
 BEFORE INSERT ON Locations
 FOR EACH ROW
 BEGIN
-    -- If the new location is 'Head', ensure only one exists
+    -- Check if the new location is 'Head'
     IF NEW.locationType = 'Head' THEN
+        -- Ensure only one 'Head' location exists
         IF EXISTS (SELECT 1 FROM Locations WHERE locationType = 'Head') THEN
             SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'Only one Head location is allowed.';
         END IF;
-    END IF;
-END$$
 
-DELIMITER ;
-
-
-
-
-This trigger checks if the club has at least a general manager, and an administrator.
-DELIMITER $$
-
-CREATE TRIGGER check_club_operational
-BEFORE INSERT ON Locations
-FOR EACH ROW
-BEGIN
-    -- Ensure that a General Manager exists for the Head location
-    IF NEW.locationType = 'Head' THEN
+        -- Ensure that a General Manager exists for the Head location
         IF NOT EXISTS (
             SELECT 1 
             FROM Personnel 
@@ -226,7 +211,7 @@ BEGIN
             SET MESSAGE_TEXT = 'A General Manager is required for the Head location.';
         END IF;
 
-        -- Ensure at least one Administrator exists for the Head location
+        -- Ensure that at least one Administrator exists for the Head location
         IF NOT EXISTS (
             SELECT 1 
             FROM Personnel 
@@ -240,6 +225,7 @@ BEGIN
 END$$
 
 DELIMITER ;
+
 
 
 This stored procedure removes family members who no longer have any associated club members.
