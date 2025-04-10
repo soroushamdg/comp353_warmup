@@ -200,12 +200,15 @@ BEGIN
             SET MESSAGE_TEXT = 'Only one Head location is allowed.';
         END IF;
 
+        -- Temporarily mark the locationID as NULL for the insert (for check later)
+        SET @new_location_id = LAST_INSERT_ID();  -- Get the auto-incremented ID for the new location
+
         -- Ensure that a General Manager exists for the Head location
         IF NOT EXISTS (
             SELECT 1 
             FROM Personnel 
             WHERE personnelRole = 'General Manager' 
-            AND locationID = NEW.locationID
+            AND locationID = @new_location_id
         ) THEN
             SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'A General Manager is required for the Head location.';
@@ -216,7 +219,7 @@ BEGIN
             SELECT 1 
             FROM Personnel 
             WHERE personnelRole = 'Administrator' 
-            AND locationID = NEW.locationID
+            AND locationID = @new_location_id
         ) THEN
             SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'At least one Administrator is required for the Head location.';
@@ -225,6 +228,7 @@ BEGIN
 END$$
 
 DELIMITER ;
+
 
 
 
