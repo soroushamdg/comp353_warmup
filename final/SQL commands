@@ -363,29 +363,7 @@ END$$
 DELIMITER ;
 
 
-DELIMITER $$
 
-CREATE TRIGGER check_club_operational
-BEFORE INSERT ON Locations
-FOR EACH ROW
-BEGIN
-	-- Check if there's a Head location
-	IF NEW.locationType = 'Head' THEN
-    	-- Ensure that a General Manager exists
-    	IF NOT EXISTS (SELECT 1 FROM Personnel WHERE personnelRole = 'General Manager' AND locationID = NEW.locationID) THEN
-        	SIGNAL SQLSTATE '45000'
-        	SET MESSAGE_TEXT = 'A General Manager is required for the Head location.';
-    	END IF;
-
-    	-- Ensure at least one administrator exists
-    	IF NOT EXISTS (SELECT 1 FROM Personnel WHERE personnelRole = 'Administrator' AND locationID = NEW.locationID) THEN
-        	SIGNAL SQLSTATE '45000'
-        	SET MESSAGE_TEXT = 'At least one Administrator is required for the Head location.';
-    	END IF;
-	END IF;
-END$$
-
-DELIMITER ;
 
 
 This stored procedure removes family members who no longer have any associated club members.
