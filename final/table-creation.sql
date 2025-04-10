@@ -48,6 +48,7 @@ CREATE TABLE ClubMembers (
 	height INT,
 	weight INT,
 	gender ENUM('M', 'F'),
+	status ENUM('Active', 'Inactive') NOT NULL DEFAULT 'Active',
 	FOREIGN KEY (generalID) REFERENCES People(generalID)
 );
 CREATE TABLE ClubMemFamRelationship (
