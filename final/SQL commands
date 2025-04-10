@@ -279,7 +279,7 @@ INSERT INTO Contracts (locationID, personnelID, startDate, endDate, mandate, per
 VALUES (1, 1, '2025-01-01', NULL, 'Paid', 'General Manager'),
 (2, 2, '2025-02-02', NULL, 'Paid', 'Treasurer'),
 (3, 3, '2025-03-03', NULL, 'Volunteer', 'Treasurer'),
-(4, 4, '2025-04-04', NULL, 'Treasurer', 'Treasurer');
+(4, 4, '2025-04-04', NULL, 'Paid', 'Treasurer');
 
 -- Payments
 INSERT INTO Payments (clubMemberNo, paymentDate, method, amount) VALUES
