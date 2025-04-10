@@ -487,6 +487,45 @@ END$$
 
 DELIMITER ;
 
+DELIMITER $$
+
+CREATE PROCEDURE create_team_formation(
+    IN p_teamName VARCHAR(100),
+    IN p_sessionID INT
+)
+
+BEGIN
+    DECLARE v_exists_team INT;
+    DECLARE v_exists_session INT;
+
+    -- Check if team exists
+    SELECT COUNT(*) INTO v_exists_team
+    FROM Teams
+    WHERE teamName = p_teamName;
+
+    IF v_exists_team = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Team does not exist.';
+    END IF;
+
+    -- Check if session exists
+    SELECT COUNT(*) INTO v_exists_session
+    FROM Sessions
+    WHERE sessionID = p_sessionID;
+
+    IF v_exists_session = 0 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Session does not exist.';
+    END IF;
+
+    -- Insert new TeamFormation (score will be NULL by default)
+    INSERT INTO TeamFormations (teamName, sessionID)
+    VALUES (p_teamName, p_sessionID);
+END$$
+
+DELIMITER;
+
+
 
 
 This procedure creates a new contract and ends any existing contracts.
