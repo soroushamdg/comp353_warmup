@@ -137,6 +137,7 @@ CREATE TABLE Contracts (
 		'Deputy Manager',
 		'Administrator',
 		'Coach',
+		"Treasurer",
 		'Assisant Coach',
 		'Other'
 	),
