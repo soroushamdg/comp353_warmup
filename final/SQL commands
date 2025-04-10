@@ -206,6 +206,7 @@ DELIMITER ;
 
 
 
+
 This trigger checks if the club has at least one head location, a general manager, and an administrator.
 DELIMITER $$
 
