@@ -167,6 +167,31 @@ CREATE TABLE EmailLogs (
 
 
 
+DELIMITER $$
+
+CREATE TRIGGER check_team_formations_limit
+BEFORE INSERT ON TeamFormations
+FOR EACH ROW
+BEGIN
+    -- Declare a variable to store the count of team formations for the session
+    DECLARE formation_count INT;
+
+    -- Count the number of team formations for the given session ID
+    SELECT COUNT(*)
+    INTO formation_count
+    FROM TeamFormations
+    WHERE sessionID = NEW.sessionID;
+
+    -- If there are already 2 team formations for the session, raise an error
+    IF formation_count >= 2 THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot add more than 2 team formations for a single session.';
+    END IF;
+END$$
+
+DELIMITER ;
+
+
 
 
 The trigger will ensure that SSNs are unique across both Personnel and FamilyMembers tables.
@@ -188,48 +213,45 @@ DELIMITER ;
 
 DELIMITER $$
 
-CREATE TRIGGER check_head_location_and_personnel
+CREATE TRIGGER check_head_location
 BEFORE INSERT ON Locations
 FOR EACH ROW
 BEGIN
-    -- Check if the new location is 'Head'
-    IF NEW.locationType = 'Head' THEN
-        -- Ensure only one 'Head' location exists
-        IF EXISTS (SELECT 1 FROM Locations WHERE locationType = 'Head') THEN
-            SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Only one Head location is allowed.';
-        END IF;
-
-        -- Temporarily mark the locationID as NULL for the insert (for check later)
-        SET @new_location_id = LAST_INSERT_ID();  -- Get the auto-incremented ID for the new location
-
-        -- Ensure that a General Manager exists for the Head location
-        IF NOT EXISTS (
-            SELECT 1 
-            FROM Personnel 
-            WHERE personnelRole = 'General Manager' 
-            AND locationID = @new_location_id
-        ) THEN
-            SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'A General Manager is required for the Head location.';
-        END IF;
-
-        -- Ensure that at least one Administrator exists for the Head location
-        IF NOT EXISTS (
-            SELECT 1 
-            FROM Personnel 
-            WHERE personnelRole = 'Administrator' 
-            AND locationID = @new_location_id
-        ) THEN
-            SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'At least one Administrator is required for the Head location.';
-        END IF;
-    END IF;
+	-- If the new location is 'Head', ensure only one exists
+	IF NEW.locationType = 'Head' THEN
+    	IF EXISTS (SELECT 1 FROM Locations WHERE locationType = 'Head') THEN
+        	SIGNAL SQLSTATE '45000'
+        	SET MESSAGE_TEXT = 'Only one Head location is allowed.';
+    	END IF;
+	END IF;
 END$$
 
 DELIMITER ;
 
 
+DELIMITER $$
+
+CREATE TRIGGER check_club_operational
+BEFORE INSERT ON Locations
+FOR EACH ROW
+BEGIN
+	-- Check if there's a Head location
+	IF NEW.locationType = 'Head' THEN
+    	-- Ensure that a General Manager exists
+    	IF NOT EXISTS (SELECT 1 FROM Personnel WHERE personnelRole = 'General Manager' AND locationID = NEW.locationID) THEN
+        	SIGNAL SQLSTATE '45000'
+        	SET MESSAGE_TEXT = 'A General Manager is required for the Head location.';
+    	END IF;
+
+    	-- Ensure at least one administrator exists
+    	IF NOT EXISTS (SELECT 1 FROM Personnel WHERE personnelRole = 'Administrator' AND locationID = NEW.locationID) THEN
+        	SIGNAL SQLSTATE '45000'
+        	SET MESSAGE_TEXT = 'At least one Administrator is required for the Head location.';
+    	END IF;
+	END IF;
+END$$
+
+DELIMITER ;
 
 
 This stored procedure removes family members who no longer have any associated club members.
@@ -352,9 +374,260 @@ END$$
 
 DELIMITER ;
 
+DELIMITER $$
+
+CREATE TRIGGER trg_validate_location_and_gender
+BEFORE INSERT ON FormationEnrollments
+FOR EACH ROW
+BEGIN
+    DECLARE member_location INT;
+    DECLARE team_location INT;
+    DECLARE member_gender CHAR(1);
+    DECLARE team_gender CHAR(1);
+
+    -- Get the club member's location
+    SELECT locationID INTO member_location
+    FROM PlayingAt
+    WHERE clubMemberNo = NEW.clubMemberNo;
+
+    -- Get the team location and gender via the formation
+    SELECT t.locationID, t.gender INTO team_location, team_gender
+    FROM TeamFormations tf
+    JOIN Teams t ON tf.teamName = t.teamName
+    WHERE tf.formationID = NEW.formationID;
+
+    -- Get the club member's gender
+    SELECT gender INTO member_gender
+    FROM ClubMembers
+    WHERE clubMemberNo = NEW.clubMemberNo;
+
+    -- Check for nulls
+    IF member_location IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Club member has no assigned location.';
+    END IF;
+
+    IF member_gender IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Club member has no assigned gender.';
+    END IF;
+
+    IF team_location IS NULL OR team_gender IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Team information is missing for the formation.';
+    END IF;
+
+    -- Check location match
+    IF member_location != team_location THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot enroll player: location mismatch between team and club member.';
+    END IF;
+
+    -- Check gender match
+    IF member_gender != team_gender THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot enroll player: gender mismatch between team and club member.';
+    END IF;
+
+END$$
+
+DELIMITER ;
+
+DELIMITER $$
+
+CREATE TRIGGER trg_validate_formation_time_conflict
+BEFORE INSERT ON FormationEnrollments
+FOR EACH ROW
+BEGIN
+    DECLARE new_session_time DATETIME;
+    DECLARE new_session_date DATE;
+
+    -- Get start time of the session for the new formation
+    SELECT s.startTime, DATE(s.startTime) INTO new_session_time, new_session_date
+    FROM TeamFormations tf
+    JOIN Sessions s ON tf.sessionID = s.sessionID
+    WHERE tf.formationID = NEW.formationID;
+
+    -- Check for time conflicts with other formations the same player is enrolled in
+    IF EXISTS (
+        SELECT 1
+        FROM FormationEnrollments fe
+        JOIN TeamFormations tf2 ON fe.formationID = tf2.formationID
+        JOIN Sessions s2 ON tf2.sessionID = s2.sessionID
+        WHERE fe.clubMemberNo = NEW.clubMemberNo
+          AND DATE(s2.startTime) = new_session_date
+          AND ABS(TIMESTAMPDIFF(MINUTE, s2.startTime, new_session_time)) < 180
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot enroll player: session times are less than 3 hours apart on the same day.';
+    END IF;
+END$$
+
+DELIMITER ;
 
 
 
+CREATE EVENT IF NOT EXISTS ev_WeeklySessionReminder
+ON SCHEDULE EVERY 1 WEEK
+STARTS TIMESTAMP(CURRENT_DATE + INTERVAL (7 - WEEKDAY(CURRENT_DATE)) DAY)  -- Next Sunday
+DO
+CALL SendWeeklySessionReminders();
+
+
+DELIMITER $$
+
+CREATE PROCEDURE SendWeeklySessionReminders()
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE sessID INT;
+    DECLARE teamName VARCHAR(100);
+    DECLARE sessionDateTime DATETIME;
+    DECLARE sessionType ENUM('Training', 'Game');
+    DECLARE locID INT;
+    DECLARE address VARCHAR(255);
+    DECLARE city VARCHAR(100);
+    DECLARE province VARCHAR(100);
+    DECLARE postalCode VARCHAR(10);
+    DECLARE coachGeneralID INT;
+    DECLARE coachFirstName VARCHAR(100);
+    DECLARE coachLastName VARCHAR(100);
+    DECLARE coachEmail VARCHAR(100);
+
+    -- Cursor for sessions in the coming week
+    DECLARE cur CURSOR FOR
+        SELECT s.sessionID, tf.teamName, s.startTime, s.sessionType, t.locationID
+        FROM Sessions s
+        JOIN TeamFormations tf ON tf.sessionID = s.sessionID
+        JOIN Teams t ON t.teamName = tf.teamName
+        WHERE s.sessionType = 'Training'
+          AND s.startTime >= NOW()
+          AND s.startTime < DATE_ADD(NOW(), INTERVAL 7 DAY);
+
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+    OPEN cur;
+
+    read_loop: LOOP
+        FETCH cur INTO sessID, teamName, sessionDateTime, sessionType, locID;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+
+        -- Get address details
+        SELECT a.address, a.city, a.province, a.postalCode
+        INTO address, city, province, postalCode
+        FROM Locations l
+        JOIN Addresses a ON a.addressID = l.addressID
+        WHERE l.locationID = locID;
+
+        -- Get generalID of one coach at that location
+        SELECT pe.generalID, pe.firstName, pe.lastName, pe.email
+        INTO coachGeneralID, coachFirstName, coachLastName, coachEmail
+        FROM Contracts c
+        JOIN Personnel pr ON pr.personnelID = c.personnelID
+        JOIN People pe ON pe.generalID = pr.generalID
+        WHERE c.locationID = locID AND c.personnelRole = 'Coach'
+        ORDER BY c.startDate DESC
+        LIMIT 1;
+
+        -- Send emails to players in the session
+        INSERT INTO EmailLogs (senderID, recipientID, messageSubject, messageBody)
+        SELECT 
+            coachGeneralID,
+            cm.generalID,
+            CONCAT(teamName, ' ', DATE_FORMAT(sessionDateTime, '%W %d-%b-%Y %l:%i %p'), ' training session'),
+            LEFT(CONCAT(
+                'Player: ', p.firstName, ' ', p.lastName,
+                ', Role: ', fe.playerRole,
+                ', Captain: ', cap.firstName, ' ', cap.lastName, ', Email: ', cap.email,
+                ', Session Type: ', sessionType,
+                ', Address: ', address, ', ', city, ', ', province, ', ', postalCode
+            ), 100)
+        FROM FormationEnrollments fe
+        JOIN TeamFormations tf ON tf.formationID = fe.formationID
+        JOIN ClubMembers cm ON cm.clubMemberNo = fe.clubMemberNo
+        JOIN People p ON p.generalID = cm.generalID
+        JOIN Teams t ON t.teamName = tf.teamName
+        JOIN ClubMembers capcm ON capcm.clubMemberNo = t.captainMemberNo
+        JOIN People cap ON cap.generalID = capcm.generalID
+        WHERE tf.sessionID = sessID;
+
+    END LOOP;
+
+    CLOSE cur;
+END$$
+
+DELIMITER ;
+
+
+
+CREATE EVENT IF NOT EXISTS ev_DeactivateOver18
+ON SCHEDULE EVERY 1 MONTH
+STARTS TIMESTAMP(CURRENT_DATE + INTERVAL (1 - DAY(CURRENT_DATE)) DAY)
+DO
+CALL DeactivateOver18Members();
+
+DELIMITER $$
+
+CREATE PROCEDURE DeactivateOver18Members()
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE memberID INT;
+    DECLARE generalID INT;
+    DECLARE fname VARCHAR(100);
+    DECLARE lname VARCHAR(100);
+    DECLARE email VARCHAR(100);
+    DECLARE messageText TEXT;
+
+    -- Cursor to find over-18 active members
+    DECLARE cur CURSOR FOR
+        SELECT cm.clubMemberNo, p.generalID, p.firstName, p.lastName, p.email
+        FROM ClubMembers cm
+        JOIN People p ON cm.generalID = p.generalID
+        WHERE cm.status = 'Active'
+          AND TIMESTAMPDIFF(YEAR, p.dob, CURDATE()) >= 18;
+
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+    OPEN cur;
+
+    read_loop: LOOP
+        FETCH cur INTO memberID, generalID, fname, lname, email;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+
+        -- Deactivate the member
+        UPDATE ClubMembers
+        SET status = 'Inactive'
+        WHERE clubMemberNo = memberID;
+
+        -- Create message body
+        SET messageText = CONCAT(
+            'Dear ', fname, ' ', lname, ', your membership has been deactivated as you are now over 18 as of ',
+            DATE_FORMAT(CURDATE(), '%Y-%m-%d'), '. Thank you for your participation.'
+        );
+
+        -- Insert into email logs
+        INSERT INTO EmailLogs (
+            senderID,
+            recipientID,
+            messageSubject,
+            messageBody
+        )
+        VALUES (
+            1, -- system sender (generalID = 1)
+            generalID,
+            'Deactivation Notification',
+            LEFT(messageText, 100)
+        );
+
+    END LOOP;
+
+    CLOSE cur;
+END$$
+
+DELIMITER ;
 
 
 
