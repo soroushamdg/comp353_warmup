@@ -209,7 +209,7 @@ JOIN Sessions s ON s.locationID = l.locationID
 JOIN TeamFormations tf ON tf.sessionID = s.sessionID
 
 -- Filter by input date range
-WHERE s.startTime BETWEEN '2025-01-01' AND '2025-03-31'
+WHERE s.startTime BETWEEN '2025-01-01' AND '2025-05-31'
 
 GROUP BY l.locationID, l.locationName
 
@@ -217,7 +217,6 @@ GROUP BY l.locationID, l.locationName
 HAVING totalGameSessions >= 2
 
 ORDER BY totalGameSessions DESC;
-
 
 ------- Q12 ---------------------------
 -- Report of active club members never assigned to a formation
