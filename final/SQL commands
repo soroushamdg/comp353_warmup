@@ -207,23 +207,32 @@ DELIMITER ;
 
 
 
-This trigger checks if the club has at least one head location, a general manager, and an administrator.
+This trigger checks if the club has at least a general manager, and an administrator.
 DELIMITER $$
 
 CREATE TRIGGER check_club_operational
 BEFORE INSERT ON Locations
 FOR EACH ROW
 BEGIN
-    -- Check if there's a Head location
+    -- Ensure that a General Manager exists for the Head location
     IF NEW.locationType = 'Head' THEN
-        -- Ensure that a General Manager exists
-        IF NOT EXISTS (SELECT 1 FROM Personnel WHERE personnelRole = 'General Manager' AND locationID = NEW.locationID) THEN
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM Personnel 
+            WHERE personnelRole = 'General Manager' 
+            AND locationID = NEW.locationID
+        ) THEN
             SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'A General Manager is required for the Head location.';
         END IF;
 
-        -- Ensure at least one administrator exists
-        IF NOT EXISTS (SELECT 1 FROM Personnel WHERE personnelRole = 'Administrator' AND locationID = NEW.locationID) THEN
+        -- Ensure at least one Administrator exists for the Head location
+        IF NOT EXISTS (
+            SELECT 1 
+            FROM Personnel 
+            WHERE personnelRole = 'Administrator' 
+            AND locationID = NEW.locationID
+        ) THEN
             SIGNAL SQLSTATE '45000'
             SET MESSAGE_TEXT = 'At least one Administrator is required for the Head location.';
         END IF;
