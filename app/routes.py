@@ -446,4 +446,114 @@ def get_record_details(table_name, id):
         return jsonify({
             'status': 'error',
             'message': str(e)
-        }), 500 
+        }), 500
+
+@app.route('/quick-actions')
+def quick_actions():
+    # Check if database is connected
+    if not session.get('db_connected'):
+        return redirect(url_for('welcome'))
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get all stored procedures
+        cursor.execute("""
+            SELECT ROUTINE_NAME, ROUTINE_DEFINITION, DATA_TYPE, DTD_IDENTIFIER
+            FROM information_schema.ROUTINES
+            WHERE ROUTINE_SCHEMA = %s AND ROUTINE_TYPE = 'PROCEDURE'
+            ORDER BY ROUTINE_NAME
+        """, (app.config['DB_NAME'],))
+        
+        procedures = cursor.fetchall()
+        
+        if not procedures:
+            return render_template('quick_actions.html', 
+                                procedures=[],
+                                message="No stored procedures found in the database.")
+        
+        # Get parameters for each procedure
+        for procedure in procedures:
+            cursor.execute("""
+                SELECT PARAMETER_NAME, DATA_TYPE, PARAMETER_MODE
+                FROM information_schema.PARAMETERS
+                WHERE SPECIFIC_SCHEMA = %s AND SPECIFIC_NAME = %s
+                ORDER BY ORDINAL_POSITION
+            """, (app.config['DB_NAME'], procedure['ROUTINE_NAME']))
+            
+            procedure['parameters'] = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return render_template('quick_actions.html', 
+                             procedures=procedures,
+                             message=None)
+        
+    except Exception as e:
+        print(f"Error in quick_actions: {str(e)}")
+        return render_template('error.html', error=str(e))
+
+@app.route('/quick-actions/run/<procedure_name>', methods=['POST'])
+def run_procedure(procedure_name):
+    # Check if database is connected
+    if not session.get('db_connected'):
+        return jsonify({
+            'status': 'error',
+            'message': 'Database not connected'
+        }), 401
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Get procedure parameters
+        cursor.execute("""
+            SELECT PARAMETER_NAME, DATA_TYPE, PARAMETER_MODE
+            FROM information_schema.PARAMETERS
+            WHERE SPECIFIC_SCHEMA = %s AND SPECIFIC_NAME = %s
+            ORDER BY ORDINAL_POSITION
+        """, (app.config['DB_NAME'], procedure_name))
+        
+        parameters = cursor.fetchall()
+        
+        # Build CALL statement
+        param_names = []
+        param_values = []
+        for param in parameters:
+            if param['PARAMETER_MODE'] == 'IN':
+                param_names.append(param['PARAMETER_NAME'])
+                param_values.append(request.form.get(param['PARAMETER_NAME']))
+        
+        call_stmt = f"CALL {procedure_name}({', '.join(['%s'] * len(param_values))})"
+        
+        # Execute procedure
+        cursor.execute(call_stmt, param_values)
+        
+        # Get results
+        results = []
+        while True:
+            result = cursor.fetchall()
+            if not result:
+                break
+            results.append(result)
+        
+        conn.commit()
+        
+        return jsonify({
+            'status': 'success',
+            'results': results
+        })
+        
+    except Exception as e:
+        print(f"Error running procedure {procedure_name}: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e)
+        }), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close() 

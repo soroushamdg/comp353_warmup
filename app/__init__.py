@@ -2,6 +2,8 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from dotenv import load_dotenv
 import os
+from config import Config
+import re
 
 # Load environment variables
 load_dotenv()
@@ -10,12 +12,19 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configure app
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev')
-app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config.from_object(Config)
 
 # Initialize SQLAlchemy
 db = SQLAlchemy(app)
+
+# Custom Jinja filter to format titles
+@app.template_filter('format_title')
+def format_title(value):
+    if '_' in value:
+        return ' '.join(word.capitalize() for word in value.split('_'))
+    elif re.match(r'^[a-z]+([A-Z][a-z]*)*$', value):
+        return re.sub(r'([a-z])([A-Z])', r'\1 \2', value).title()
+    return value
 
 # Import routes after app is created to avoid circular imports
 from app import routes 

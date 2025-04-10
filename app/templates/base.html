@@ -164,6 +164,7 @@
     </style>
 </head>
 <body>
+    {% block show_navbar %}
     <nav class="navbar navbar-expand-lg navbar-dark mb-4">
         <div class="container">
             <a class="navbar-brand" href="{{ url_for('index') }}">
@@ -175,12 +176,18 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">Tables</a>
+                        <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('quick_actions') }}">
+                            <i class="bi bi-lightning-charge"></i> Quick Actions
+                        </a>
                     </li>
                 </ul>
             </div>
         </div>
     </nav>
+    {% endblock %}
 
     <div class="container mt-4">
         {% block content %}{% endblock %}
