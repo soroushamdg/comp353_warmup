@@ -273,186 +273,114 @@ WHERE personnelID = 1;
 
 
 
+The trigger will ensure that SSNs are unique across both Personnel and FamilyMembers tables.
+DELIMITER $$
+
+CREATE TRIGGER check_ssn_unique
+BEFORE INSERT ON People
+FOR EACH ROW
+BEGIN
+    -- Check if SSN is already used by any personnel or family member
+    IF EXISTS (SELECT 1 FROM Personnel WHERE sin = NEW.sin) OR EXISTS (SELECT 1 FROM FamilyMembers WHERE sin = NEW.sin) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'SSN is already in use for another member.';
+    END IF;
+END$$
+
+DELIMITER ;
 
 
--- Trigger to enforce a single Head location
-CREATE TRIGGER enforceSingleHeadLocation
+This trigger checks if there is already a location marked as the "Head" location before inserting a new one.
+DELIMITER $$
+
+CREATE TRIGGER check_head_location
 BEFORE INSERT ON Locations
 FOR EACH ROW
 BEGIN
+    -- If the new location is 'Head', ensure only one exists
     IF NEW.locationType = 'Head' THEN
-        IF (SELECT COUNT(*) FROM Locations WHERE locationType = 'Head') > 0 THEN
+        IF EXISTS (SELECT 1 FROM Locations WHERE locationType = 'Head') THEN
             SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'There can only be one Head location in the system.';
+            SET MESSAGE_TEXT = 'Only one Head location is allowed.';
         END IF;
     END IF;
-END //
+END$$
 
--- Procedure to assign personnel to a location with roles, mandates, and dates
-CREATE PROCEDURE assignPersonnelToLocation(
-    IN pPersonnelID INT,
-    IN pLocationID INT,
-    IN pStartDate DATE,
-    IN pEndDate DATE,
-    IN pPersonnelRole ENUM('General Manager', 'Deputy Manager', 'Treasurer', 'Secretary', 'Administrator', 'Coach', 'Assistant Coach', 'Other'),
-    IN pMandate ENUM('Volunteer', 'Paid')
-)
-BEGIN
-    -- Insert or update personnel assignment
-    INSERT INTO PersonnelLocationAssignments (personnelID, locationID, startDate, endDate, personnelRole, mandate)
-    VALUES (pPersonnelID, pLocationID, pStartDate, pEndDate, pPersonnelRole, pMandate)
-    ON DUPLICATE KEY UPDATE 
-        startDate = pStartDate,
-        endDate = pEndDate,
-        personnelRole = pPersonnelRole,
-        mandate = pMandate;
-END //
+DELIMITER ;
 
--- Procedure to ensure at least one General Manager at the Head location
-CREATE PROCEDURE enforceGeneralManagerAtHeadLocation()
-BEGIN
-    DECLARE headLocationCount INT;
-    DECLARE gmCount INT;
 
-    -- Check if there is exactly one Head location
-    SELECT COUNT(*) INTO headLocationCount
-    FROM Locations
-    WHERE locationType = 'Head';
 
-    IF headLocationCount != 1 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'There must be exactly one Head location in the system.';
-    END IF;
+This trigger checks if the club has at least one head location, a general manager, and an administrator.
+DELIMITER $$
 
-    -- Ensure at least one General Manager exists at the Head location
-    SELECT COUNT(*) INTO gmCount
-    FROM PersonnelLocationAssignments AS pla
-    JOIN Personnel AS p ON pla.personnelID = p.personnelID
-    WHERE pla.locationID = (SELECT locationID FROM Locations WHERE locationType = 'Head') 
-      AND pla.personnelRole = 'General Manager' 
-      AND (pla.endDate IS NULL OR pla.endDate > CURDATE());
-
-    IF gmCount = 0 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'There must be at least one General Manager at the Head location.';
-    END IF;
-END //
-
--- Trigger to enforce personnel role at Head location
-CREATE TRIGGER enforceHeadLocationPersonnelRoles
-BEFORE INSERT ON PersonnelLocationAssignments
+CREATE TRIGGER check_club_operational
+BEFORE INSERT ON Locations
 FOR EACH ROW
 BEGIN
-    -- Ensure certain roles are only assigned to Head location
-    IF NEW.locationID = (SELECT locationID FROM Locations WHERE locationType = 'Head') THEN
-        IF NEW.personnelRole NOT IN ('General Manager', 'Deputy Manager', 'Treasurer', 'Secretary', 'Administrator') THEN
+    -- Check if there's a Head location
+    IF NEW.locationType = 'Head' THEN
+        -- Ensure that a General Manager exists
+        IF NOT EXISTS (SELECT 1 FROM Personnel WHERE personnelRole = 'General Manager' AND locationID = NEW.locationID) THEN
             SIGNAL SQLSTATE '45000'
-            SET MESSAGE_TEXT = 'Only General Manager, Deputy Manager, Treasurer, Secretary, or Administrator can be assigned to the Head location.';
+            SET MESSAGE_TEXT = 'A General Manager is required for the Head location.';
+        END IF;
+
+        -- Ensure at least one administrator exists
+        IF NOT EXISTS (SELECT 1 FROM Personnel WHERE personnelRole = 'Administrator' AND locationID = NEW.locationID) THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'At least one Administrator is required for the Head location.';
         END IF;
     END IF;
-END //
-
--- Check if the club can operate: Head location, General Manager, and Administrator required
-CREATE PROCEDURE checkClubOperation()
-BEGIN
-    DECLARE headLocationCount INT;
-    DECLARE personnelCount INT;
-    DECLARE adminCount INT;
-
-    -- Check if there is at least one Head location
-    SELECT COUNT(*) INTO headLocationCount FROM Locations WHERE locationType = 'Head';
-    IF headLocationCount = 0 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'The club cannot operate without a Head location.';
-    END IF;
-
-    -- Check if there is at least one General Manager
-    SELECT COUNT(*) INTO personnelCount FROM PersonnelLocationAssignments AS pla
-    WHERE pla.personnelRole = 'General Manager' 
-      AND pla.endDate IS NULL;
-    IF personnelCount = 0 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'The club cannot operate without a General Manager.';
-    END IF;
-
-    -- Check if there is at least one Administrator
-    SELECT COUNT(*) INTO adminCount FROM PersonnelLocationAssignments AS pla
-    WHERE pla.personnelRole = 'Administrator' 
-      AND pla.endDate IS NULL;
-    IF adminCount = 0 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'The club cannot operate without at least one Administrator.';
-    END IF;
-END //
+END$$
 
 DELIMITER ;
 
 
-
-NEW CONTRACT
-DELIMITER //
-
-CREATE PROCEDURE newContract(
-	IN pPersonnelID INT,
-	IN pLocationID INT,
-	IN pStartDate DATE,
-	IN pRole ENUM('General Manager', 'Deputy Manager', 'Administrator', 'Coach', 'Assisant Coach', 'Other'),
-	IN pMandate ENUM('Volunteer', 'Paid')
-)
-BEGIN
-	DECLARE numActiveContracts INT;
-
-	-- End any current active contracts with different details
-	UPDATE Contracts
-	SET endDate = CURDATE()
-	WHERE personnelID = pPersonnelID
-	AND endDate IS NULL
-	AND (locationID != pLocationID OR personnelRole != pRole OR mandate != pMandate);
-
-	-- Insert new contract
-	INSERT INTO Contracts(personnelID, locationID, startDate, personnelRole, mandate)
-	VALUES (pPersonnelID, pLocationID, pStartDate, pRole, pMandate);
-END //
-
-DELIMITER ;
-
-
-TERMINATE CONTRACT 
-DELIMITER //
-
-CREATE PROCEDURE terminateContract(IN pPersonnelID INT)
-BEGIN
-	UPDATE Contracts
-	SET endDate = CURDATE()
-	WHERE personnelID = pPersonnelID
-	AND endDate IS NULL;
-END //
-
-DELIMITER ;
-
-
-
--- Create a trigger to enforce a maximum of 2 team formations per session
+This stored procedure removes family members who no longer have any associated club members.
 DELIMITER $$
 
-CREATE TRIGGER check_team_formations_limit
-BEFORE INSERT ON TeamFormations
-FOR EACH ROW
+CREATE PROCEDURE remove_unlinked_family_members()
 BEGIN
-    -- Declare a variable to store the count of team formations for the session
-    DECLARE formation_count INT;
+    DELETE FROM FamilyMembers
+    WHERE famMemberID NOT IN (SELECT famMemberID FROM ClubMemFamRelationship);
+END$$
 
-    -- Count the number of team formations for the given session ID
-    SELECT COUNT(*)
-    INTO formation_count
-    FROM TeamFormations
-    WHERE sessionID = NEW.sessionID;
+DELIMITER ;
 
-    -- If there are already 2 team formations for the session, raise an error
-    IF formation_count >= 2 THEN
+
+This procedure will find members who have not paid their full fees.
+DELIMITER $$
+
+CREATE PROCEDURE find_members_not_in_good_standing()
+BEGIN
+    SELECT cm.clubMemberNo, cm.firstName, cm.lastName
+    FROM ClubMembers cm
+    LEFT JOIN Payments p ON cm.clubMemberNo = p.clubMemberNo
+    GROUP BY cm.clubMemberNo
+    HAVING SUM(p.amount) < 100;
+END$$
+
+DELIMITER ;
+
+
+
+This procedure creates a new activity (game or training) for a location, ensuring the club is operational.
+DELIMITER $$
+
+CREATE PROCEDURE create_new_activity(
+    IN locationID INT,
+    IN sessionType ENUM('Training', 'Game'),
+    IN startTime DATETIME
+)
+BEGIN
+    -- Ensure the club can operate
+    IF NOT EXISTS (SELECT 1 FROM Locations WHERE locationID = locationID AND locationType = 'Head') THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot add more than 2 team formations for a single session.';
+        SET MESSAGE_TEXT = 'No valid head location found for the club.';
     END IF;
+
+    INSERT INTO Sessions (locationID, startTime, sessionType)
+    VALUES (locationID, startTime, sessionType);
 END$$
 
 DELIMITER ;
@@ -460,543 +388,71 @@ DELIMITER ;
 
 
 
+This procedure registers a club member for an activity.
 DELIMITER $$
 
-CREATE TRIGGER trg_validate_formation_time_conflict
-BEFORE INSERT ON FormationEnrollments
-FOR EACH ROW
+CREATE PROCEDURE register_member_in_activity(
+    IN clubMemberNo INT,
+    IN sessionID INT
+)
 BEGIN
-    DECLARE new_session_time DATETIME;
-    DECLARE new_session_date DATE;
-
-    -- Get start time of the session for the new formation
-    SELECT s.startTime, DATE(s.startTime) INTO new_session_time, new_session_date
-    FROM TeamFormations tf
-    JOIN Sessions s ON tf.sessionID = s.sessionID
-    WHERE tf.formationID = NEW.formationID;
-
-    -- Check for time conflicts with other formations the same player is enrolled in
-    IF EXISTS (
-        SELECT 1
-        FROM FormationEnrollments fe
-        JOIN TeamFormations tf2 ON fe.formationID = tf2.formationID
-        JOIN Sessions s2 ON tf2.sessionID = s2.sessionID
-        WHERE fe.clubMemberNo = NEW.clubMemberNo
-          AND DATE(s2.startTime) = new_session_date
-          AND ABS(TIMESTAMPDIFF(MINUTE, s2.startTime, new_session_time)) < 180
-    ) THEN
+    -- Ensure the member is active
+    IF (SELECT status FROM ClubMembers WHERE clubMemberNo = clubMemberNo) != 'Active' THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot enroll player: session times are less than 3 hours apart on the same day.';
-    END IF;
-END$$
-
-DELIMITER ;
-
-
-DELIMITER $$
-
-CREATE TRIGGER trg_validate_location_and_gender
-BEFORE INSERT ON FormationEnrollments
-FOR EACH ROW
-BEGIN
-    DECLARE member_location INT;
-    DECLARE team_location INT;
-    DECLARE member_gender CHAR(1);
-    DECLARE team_gender CHAR(1);
-
-    -- Get the club member's location
-    SELECT locationID INTO member_location
-    FROM PlayingAt
-    WHERE clubMemberNo = NEW.clubMemberNo;
-
-    -- Get the team location and gender via the formation
-    SELECT t.locationID, t.gender INTO team_location, team_gender
-    FROM TeamFormations tf
-    JOIN Teams t ON tf.teamName = t.teamName
-    WHERE tf.formationID = NEW.formationID;
-
-    -- Get the club member's gender
-    SELECT gender INTO member_gender
-    FROM ClubMembers
-    WHERE clubMemberNo = NEW.clubMemberNo;
-
-    -- Check for nulls
-    IF member_location IS NULL THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Club member has no assigned location.';
+        SET MESSAGE_TEXT = 'Member is not active and cannot be registered for this activity.';
     END IF;
 
-    IF member_gender IS NULL THEN
+    -- Check if the activity date has passed
+    IF (SELECT startTime FROM Sessions WHERE sessionID = sessionID) < CURDATE() THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Club member has no assigned gender.';
+        SET MESSAGE_TEXT = 'Cannot register: activity date has already passed.';
     END IF;
 
-    IF team_location IS NULL OR team_gender IS NULL THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Team information is missing for the formation.';
-    END IF;
-
-    -- Check location match
-    IF member_location != team_location THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot enroll player: location mismatch between team and club member.';
-    END IF;
-
-    -- Check gender match
-    IF member_gender != team_gender THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot enroll player: gender mismatch between team and club member.';
-    END IF;
-
+    -- Proceed with registration
+    INSERT INTO FormationEnrollments (formationID, clubMemberNo)
+    VALUES (sessionID, clubMemberNo);
 END$$
 
 DELIMITER ;
 
 
 
-OLD TRIGGERS
-Trigger for club member status checking and updating
--- This checks for valid age when registering, and checks each day to update Active / Inactivity
-DELIMITER //
-CREATE TRIGGER check_member_age_before_insert
-BEFORE INSERT ON ClubMembers
-FOR EACH ROW
+This procedure creates a new contract and ends any existing contracts.
+DELIMITER $$
+
+CREATE PROCEDURE create_contract_for_personnel(
+    IN personnelID INT,
+    IN locationID INT,
+    IN startDate DATE,
+    IN mandate ENUM('Volunteer', 'Paid'),
+    IN personnelRole ENUM('General Manager', 'Deputy Manager', 'Administrator', 'Coach', 'Assistant Coach', 'Other')
+)
 BEGIN
-	DECLARE member_age INT;
-   
-	-- Calculate age at the time of registration
-	SET member_age = TIMESTAMPDIFF(YEAR, NEW.dob, CURDATE());
+    -- End any existing active contracts for the personnel
+    UPDATE Contracts
+    SET endDate = CURDATE()
+    WHERE personnelID = personnelID AND endDate IS NULL;
 
-	-- Enforce the age restriction
-	IF member_age < 11 OR member_age > 18 THEN
-    	SIGNAL SQLSTATE '45000'
-    	SET MESSAGE_TEXT = 'Member must be between 11 and 18 years old at registration.';
-	ELSE
-    	SET NEW.status = 'Active';
-	END IF;
-END //
+    -- Insert the new contract
+    INSERT INTO Contracts (locationID, personnelID, startDate, mandate, personnelRole)
+    VALUES (locationID, personnelID, startDate, mandate, personnelRole);
+END$$
 
-Update member statuses
-CREATE EVENT update_member_status
-ON SCHEDULE EVERY 1 DAY
-DO
-BEGIN
-	UPDATE ClubMembers
-	SET status =
-    	CASE
-        	WHEN TIMESTAMPDIFF(YEAR, dob, CURDATE()) BETWEEN 11 AND 18 THEN 'Active'
-        	ELSE 'Inactive'
-    	END;
-END //
--- DELIMITER ;
-
-Check ClubSSN universal
--- Trigger to enforce global uniqueness of SSN
--- We want to check if ssn is valid across all locations where SSN is stored
-
-
--- DELIMITER //
-CREATE TRIGGER check_clubmember_ssn
-BEFORE INSERT ON ClubMembers
-FOR EACH ROW
-BEGIN
-	IF (EXISTS (SELECT ssn FROM FamilyMembers WHERE ssn = NEW.ssn))
- 	THEN
-    	SIGNAL SQLSTATE '45000'
-    	SET MESSAGE_TEXT = 'SSN already exists';
-	END IF;
-END //
-
-DELIMITER //
- 
--- Check FamilyMembers SSN
-CREATE TRIGGER check_familymember_ssn
-BEFORE INSERT ON FamilyMembers
-FOR EACH ROW
-BEGIN
-	IF (EXISTS (SELECT ssn FROM ClubMembers WHERE ssn = NEW.ssn))
- 	THEN
-    	SIGNAL SQLSTATE '45000'
-    	SET MESSAGE_TEXT = 'SSN already exists';
-	END IF;
-END
-//
 DELIMITER ;
 
 
 
--- Ensure only one location is marked as 'Head'
-- DELIMITER //
+This procedure terminates all active contracts for a specific personnel.
+DELIMITER $$
 
-Procedure to add a family member without specifying an ID
-CREATE PROCEDURE addFamilyMember(
-	IN pFirstName VARCHAR(100),
-	IN pLastName VARCHAR(100),
-	IN pDob DATE,
-	IN pSsn VARCHAR(15),
-	IN pMedicareCard VARCHAR(15),
-	IN pPhoneNumber VARCHAR(15),
-	IN pAddress VARCHAR(255),
-	IN pCity VARCHAR(100),
-	IN pProvince VARCHAR(100),
-	IN pPostalCode VARCHAR(10),
-	IN pEmail VARCHAR(100),
-	IN pLocationId INT
+CREATE PROCEDURE terminate_all_active_contracts(
+    IN personnelID INT
 )
 BEGIN
-	INSERT INTO FamilyMembers (
-	firstName,
-	lastName,
-	dob,
-	ssn,
-	medicareCard,
-	phoneNumber,
-	address,
-	city,
-	province,
-	postalCode,
-	email,
-	locationId
-  )
-	VALUES (
-	pFirstName,
-	pLastName,
-	pDob,
-	pSsn,
-	pMedicareCard,
-	pPhoneNumber,
-	pAddress,
-	pCity,
-	pProvince,
-	pPostalCode,
-	pEmail,
-	pLocationId
-  );
-END //
--- DELIMITER ;
-
-Trigger to enforce there only being one head location
--- DELIMITER //
-CREATE TRIGGER enforceSingleHead BEFORE INSERT ON Locations
-FOR EACH ROW
-BEGIN
-	IF NEW.locationType = 'Head' THEN
-    	IF (SELECT COUNT(*) FROM Locations WHERE locationType = 'Head') > 0 THEN
-        	SIGNAL SQLSTATE '45000'
-        	SET MESSAGE_TEXT = 'There can only be one Head location.';
-    	END IF;
-	END IF;
-END //
--- DELIMITER ;
-
--- DELIMITER //
-
-Check if the club can operate 
- (head location, general manager, and at least 1 administrator must exist)
-CREATE PROCEDURE checkClubOperation()
-BEGIN
-    
-	DECLARE headCount INT;
-	DECLARE personnelCount INT;
-	DECLARE adminCount INT;
-
-	-- Check if there is at least one head location
-	SELECT COUNT(*) INTO headCount FROM Locations WHERE type = 'Head';
-	IF headCount = 0 THEN
-    	SIGNAL SQLSTATE '45000'
-    	SET MESSAGE_TEXT = 'The club cannot operate without a Head location.';
-	END IF;
-
-	-- Check if there is at least one general manager
-	SELECT COUNT(*) INTO personnelCount FROM Personnel WHERE role = 'General Manager';
-	IF personnelCount = 0 THEN
-    	SIGNAL SQLSTATE '45000'
-    	SET MESSAGE_TEXT = 'The club cannot operate without a General Manager.';
-	END IF;
-
-	-- Check if there is at least one administrator
-	SELECT COUNT(*) INTO adminCount FROM Personnel WHERE role = 'Administrator';
-	IF adminCount = 0 THEN
-    	SIGNAL SQLSTATE '45000'
-    	SET MESSAGE_TEXT = 'The club cannot operate without at least one Administrator.';
-	END IF;
-END //
-
-
--- DELIMITER //
-
-Procedure to add a family member without specifying an ID
-CREATE PROCEDURE addFamilyMember(
-	IN pFirstName VARCHAR(100),
-	IN pLastName VARCHAR(100),
-	IN pDob DATE,
-	IN pSsn VARCHAR(15),
-	IN pMedicareCard VARCHAR(15),
-	IN pPhoneNumber VARCHAR(15),
-	IN pAddress VARCHAR(255),
-	IN pCity VARCHAR(100),
-	IN pProvince VARCHAR(100),
-	IN pPostalCode VARCHAR(10),
-	IN pEmail VARCHAR(100),
-	IN pLocationId INT
-)
-BEGIN
-	INSERT INTO FamilyMembers (
-	firstName,
-	lastName,
-	dob,
-	ssn,
-	medicareCard,
-	phoneNumber,
-	address,
-	city,
-	province,
-	postalCode,
-	email,
-	locationId
-  )
-	VALUES (
-	pFirstName,
-	pLastName,
-	pDob,
-	pSsn,
-	pMedicareCard,
-	pPhoneNumber,
-	pAddress,
-	pCity,
-	pProvince,
-	pPostalCode,
-	pEmail,
-	pLocationId
-  );
-END //
-
-Procedure to remove family members no longer linked to club members
-
--- DELIMITER //
-CREATE PROCEDURE pruneUnlinkedFamilyMembers()
-BEGIN
-	DELETE FROM FamilyMembers
-	WHERE familyMemberId IN (
-    	SELECT fm.familyMemberId
-    	FROM FamilyMembers fm
-    	LEFT JOIN ClubMembers cm ON fm.familyMemberId = cm.familyMemberId
-    	WHERE cm.familyMemberId IS NULL
-	);
-END //
-
-
--- DELIMITER ;
-
-
- Procedure to find members not in good financial standing
- so that they may arrange their payments before next year
--- DELIMITER //
-
-CREATE PROCEDURE MembersToContact()
-BEGIN
-	-- Define age range
-	DECLARE minAge INT DEFAULT 18;
-	DECLARE maxAge INT DEFAULT 65;
-	DECLARE nextMembershipPeriod INT;
-
-	-- Calculate the next membership period
-	SET nextMembershipPeriod = YEAR(CURDATE()) + 1;
-
-	-- Retrieve members not in good financial standing
-	SELECT p.firstName, p.lastName, p.email, p.phoneNumber
-	FROM ClubMembers cm
-	JOIN Payments pay ON cm.clubMemberNumber = pay.clubMemberNumber
-	JOIN FamilyMembers fm ON cm.familyMemberId = fm.familyMemberId
-	WHERE pay.membershipPeriod = nextMembershipPeriod
-	GROUP BY cm.clubMemberNumber
-	HAVING SUM(pay.amount) < 100
-  	AND TIMESTAMPDIFF(YEAR, cm.dob, CURDATE()) BETWEEN minAge AND maxAge;
-END //
-
-
-
--- DELIMITER ;
-
-Procedure to create new activity 
-will create if club is operational, personnel responsible exists, location exists
-
--- DELIMITER //
-
-CREATE PROCEDURE newActivity(
-	IN pActivityType VARCHAR(100),
-	IN pActivityDate DATE,
-	IN pPersonnelResponsible INT,
-	IN pLocationId INT,
-	IN pMaxParticipants INT
-)
-BEGIN
-    
-	DECLARE eventCount INT;
-	DECLARE personnelExists INT;
-	DECLARE locationExists INT;
-    
-    
-	CALL checkClubOperation(); -- will throw an error if club does can’t operate
-
-    
-	SELECT COUNT(*) INTO personnelExists
-	FROM Personnel
-	WHERE personnelId = pPersonnelResponsible;
-    
-	SELECT COUNT(*) INTO locationExists
-	FROM Locations
-	WHERE locationId = pLocationId;
-    
-	IF personnelExists > 0 AND locationExists > 0 THEN
-    
-    
-    	SELECT COUNT(*) INTO eventCount
-    	FROM Activities
-    	WHERE activityDate = pActivityDate
-        	AND locationId = pLocationId;
-    
-    	IF eventCount = 0 THEN
-        	INSERT INTO Activities(
-        	activityType,
-        	activityDate,
-        	personnelId,
-        	locationId,
-        	maxParticipants
-      	)
-        	VALUES (
-        	pActivityType,
-        	pActivityDate,
-        	personnelId,
-        	locationId,
-        	maxParticipants
-      	);
-    	END IF;
-	END IF;
-END //
-
--- DELIMITER ;
-
-
-Procedure to register a club member in an activity
-member must be active and the activity date can’t have passed
-
--- DELIMITER //
-
-CREATE PROCEDURE registerParticipant(
-	IN pParticipantId INT,
-	IN pActivityId INT
-)
-BEGIN
-	DECLARE activityExists INT;
-	DECLARE memberExists INT;
-	DECLARE memberStatus VARCHAR(100);
-	DECLARE currentParticipants INT;
-	DECLARE maxParticipants INT;
-	DECLARE activityDate DATE;
-    
-    
-	SELECT COUNT(*) INTO memberExists
-	FROM ClubMembers
-	WHERE memberId = pParticipantId;
-    
-	IF memberExists > 0 THEN
-    	SELECT memberStatus
-  	FROM ClubMembers
-  	WHERE memberID = pParticipantId
-  	INTO memberStatus;
-
-    	IF memberStatus != "Active" THEN
-        	SIGNAL SQLSTATE '45000'
-        	SET MESSAGE_TEXT = "Member inactive, cannot be registered in activities.";
-    	END IF;
-	END IF;
-
-	SELECT COUNT(*), activityDate, maxParticipants
-	INTO activityExists, activityDate, maxParticipants
-	FROM Activities
-	WHERE activityId = pActivityId;
-
-    
-	SELECT COUNT(*) INTO currentParticipants
-	FROM ActivityRegistrations
-	WHERE activityId = pActivityId;
-    
-    
-	IF activityExists > 0
-    	AND memberExists > 0
-    	AND currentParticipants < maxParticipants  
-    	AND activityDate > CURDATE() THEN
-        	INSERT INTO ActivityRegistrations (memberId, activityId)
-        	VALUES (pParticipantId, pActivityId);
-	END IF;
-END //
-
--- DELIMITER ;
-
-
- Procedure to create a new contract for a personnel
- (will end all active contracts if any exist)
--- DELIMITER //
-
-CREATE PROCEDURE newContract(
-	pPersonnelId INT,
-	pLocationId INT,
-	pStartDate DATE,
-	pPosition VARCHAR(25),
-	pMandate VARCHAR(25)
-)
-BEGIN
-	DECLARE numActiveContracts INT;
-    
-	SELECT COUNT(*)
-	FROM Contracts
-	WHERE personnelId = pPersonnelId
-    	AND endDate IS NULL
-	INTO numActiveContracts;
-    
-	IF numActiveContracts > 0 THEN
-    	UPDATE Contracts
-    	SET endDate = CURDATE()
-    	WHERE personnelId = pPersonnelId
-        	AND endDate IS NULL
-        	AND (position != pPosition OR mandate != pMandate OR locationId != pLocationId);
-	END IF;
-    
-	IF numActiveContracts = 0 THEN
-    	INSERT INTO Contracts(personnelId, locationId, startDate, position, mandate)
-    	VALUES (pPersonnelId, pLocationId, pStartDate, pPosition, pMandate);
-   	 
-    	IF pPosition = "General Manager" THEN
-        	UPDATE Locations
-        	SET generalManagerId = pPersonnelId
-        	WHERE locationId = pLocationId;
-    	END IF;
-	END IF;
-END //
-
--- DELIMITER ;
-
-
-Procedure to terminate all active contracts for given personnel
--- DELIMITER //
-
-CREATE PROCEDURE terminateContract(pPersonnelId INT)
-BEGIN
-	DECLARE numActiveContracts INT;
-    
-	SELECT COUNT(*)
-	FROM Contracts
-	WHERE personnelId = pPersonnelId
-    	AND endDate IS NULL
-	INTO numActiveContracts;
-    
-	IF numActiveContracts > 0 THEN
-    	UPDATE Contracts
-    	SET endDate = CURDATE()
-    	WHERE personnelId = pPersonnelId AND endDate IS NULL;
-	END IF;
-END //
+    UPDATE Contracts
+    SET endDate = CURDATE()
+    WHERE personnelID = personnelID AND endDate IS NULL;
+END$$
 
 DELIMITER ;
 
