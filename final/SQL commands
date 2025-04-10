@@ -331,24 +331,6 @@ DELIMITER ;
 
 
 
-
-The trigger will ensure that SSNs are unique across both Personnel and FamilyMembers tables.
-DELIMITER $$
-
-CREATE TRIGGER check_ssn_unique
-BEFORE INSERT ON People
-FOR EACH ROW
-BEGIN
-    -- Check if SSN is already used by any personnel or family member
-    IF EXISTS (SELECT 1 FROM Personnel WHERE sin = NEW.sin) OR EXISTS (SELECT 1 FROM FamilyMembers WHERE sin = NEW.sin) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'SSN is already in use for another member.';
-    END IF;
-END$$
-
-DELIMITER ;
-
-
 DELIMITER $$
 
 CREATE TRIGGER check_head_location
