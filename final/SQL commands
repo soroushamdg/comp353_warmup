@@ -48,6 +48,7 @@ CREATE TABLE ClubMembers (
 	height INT,
 	weight INT,
 	gender ENUM('M', 'F'),
+	status ENUM('Active', 'Inactive') DEFAULT 'Active',
 	FOREIGN KEY (generalID) REFERENCES People(generalID)
 );
 CREATE TABLE ClubMemFamRelationship (
@@ -404,11 +405,18 @@ DELIMITER $$
 
 CREATE PROCEDURE find_members_not_in_good_standing()
 BEGIN
-    SELECT cm.clubMemberNo, cm.firstName, cm.lastName
+    SELECT 
+        cm.clubMemberNo,
+        p.firstName,
+        p.lastName,
+        IFNULL(SUM(pay.amount), 0) AS totalPaid
     FROM ClubMembers cm
-    LEFT JOIN Payments p ON cm.clubMemberNo = p.clubMemberNo
-    GROUP BY cm.clubMemberNo
-    HAVING SUM(p.amount) < 100;
+    JOIN People p ON cm.generalID = p.generalID
+    LEFT JOIN Payments pay 
+        ON cm.clubMemberNo = pay.clubMemberNo 
+        AND YEAR(pay.paymentDate) = YEAR(CURRENT_DATE)
+    GROUP BY cm.clubMemberNo, p.firstName, p.lastName
+    HAVING totalPaid < 100;
 END$$
 
 DELIMITER ;
@@ -443,25 +451,56 @@ This procedure registers a club member for an activity.
 DELIMITER $$
 
 CREATE PROCEDURE register_member_in_activity(
-    IN clubMemberNo INT,
-    IN sessionID INT
+    IN p_clubMemberNo INT,
+    IN p_formationID INT,
+    IN p_playerRole ENUM(
+        'Outside Hitter',
+        'Opposite',
+        'Setter',
+        'Middle Blocker',
+        'Libero',
+        'Defensive Specialist',
+        'Serving Specialist'
+    )
 )
 BEGIN
-    -- Ensure the member is active
-    IF (SELECT status FROM ClubMembers WHERE clubMemberNo = clubMemberNo) != 'Active' THEN
+    DECLARE v_status VARCHAR(20);
+    DECLARE v_sessionTime DATETIME;
+
+    -- 1. Check if member is active
+    SELECT status INTO v_status
+    FROM ClubMembers
+    WHERE clubMemberNo = p_clubMemberNo;
+
+    IF v_status IS NULL THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Member is not active and cannot be registered for this activity.';
+        SET MESSAGE_TEXT = 'Club member not found.';
     END IF;
 
-    -- Check if the activity date has passed
-    IF (SELECT startTime FROM Sessions WHERE sessionID = sessionID) < CURDATE() THEN
+    IF v_status != 'Active' THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Cannot register: activity date has already passed.';
+        SET MESSAGE_TEXT = 'Member is not active and cannot be registered.';
     END IF;
 
-    -- Proceed with registration
-    INSERT INTO FormationEnrollments (formationID, clubMemberNo)
-    VALUES (sessionID, clubMemberNo);
+    -- 2. Check if session has already started
+    SELECT s.startTime INTO v_sessionTime
+    FROM TeamFormations tf
+    JOIN Sessions s ON tf.sessionID = s.sessionID
+    WHERE tf.formationID = p_formationID;
+
+    IF v_sessionTime IS NULL THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Invalid formation or session not found.';
+    END IF;
+
+    IF v_sessionTime < NOW() THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Cannot register: session has already started.';
+    END IF;
+
+    -- 3. Register member to the formation
+    INSERT INTO FormationEnrollments (formationID, clubMemberNo, playerRole)
+    VALUES (p_formationID, p_clubMemberNo, p_playerRole);
 END$$
 
 DELIMITER ;
