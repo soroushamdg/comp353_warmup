@@ -231,8 +231,7 @@ SELECT
     -- Age calculated from date of birth
     TIMESTAMPDIFF(YEAR, p.dob, CURDATE()) AS age,
 
-    -- Join date and contact info
-    cm.joinDate,
+    -- Contact info
     p.telephoneNo,
     p.email,
 
