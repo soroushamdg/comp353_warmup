@@ -164,111 +164,7 @@ CREATE TABLE EmailLogs (
 
 
 
-CREATE LOCATION 
 
-DELIMITER //
-
-CREATE PROCEDURE CreateLocation(
-    IN locType ENUM('Head', 'Branch'),
-    IN cap INT,
-    IN name VARCHAR(100),
-    IN addrID INT,
-    IN phone VARCHAR(15),
-    IN web VARCHAR(100)
-)
-BEGIN
-    IF locType = 'Head' AND EXISTS (SELECT 1 FROM Locations WHERE locationType = 'Head') THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A Head location already exists.';
-    ELSE
-        INSERT INTO Locations (locationType, maxCapacity, locationName, addressID, telephoneNo, webAddress)
-        VALUES (locType, cap, name, addrID, phone, web);
-    END IF;
-END //
-
-DELIMITER ;
-
-
-
-DELETE LOCATION 
-
-DELIMITER //
-
-CREATE PROCEDURE DeleteLocation(IN locID INT)
-BEGIN
-    DELETE FROM Locations WHERE locationID = locID;
-END //
-
-DELIMITER ;
-
-
-EDIT LOCATION
-
-DELIMITER //
-
-CREATE PROCEDURE EditLocation(
-    IN locID INT,
-    IN newType ENUM('Head', 'Branch'),
-    IN newCap INT,
-    IN newName VARCHAR(100),
-    IN newAddrID INT,
-    IN newPhone VARCHAR(15),
-    IN newWeb VARCHAR(100)
-)
-BEGIN
-    IF newType = 'Head' AND EXISTS (
-        SELECT 1 FROM Locations WHERE locationType = 'Head' AND locationID != locID
-    ) THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Another Head location already exists.';
-    ELSE
-        UPDATE Locations
-        SET locationType = newType,
-            maxCapacity = newCap,
-            locationName = newName,
-            addressID = newAddrID,
-            telephoneNo = newPhone,
-            webAddress = newWeb
-        WHERE locationID = locID;
-    END IF;
-END //
-
-DELIMITER ;
-
-
-DISPLAY ALL LOCATIONS
-DELIMITER //
-
-CREATE PROCEDURE DisplayLocations()
-BEGIN
-    SELECT L.*, A.address, A.city, A.province, A.postalCode
-    FROM Locations L
-    JOIN Addresses A ON L.addressID = A.addressID;
-END //
-
-DELIMITER ;
-
-
-CREATE PERSONNEL 
--- Create a Personnel (add to the People table first, then reference it in the Personnel table)
--- Assuming you already have a person added (let's say generalID = 1)
-INSERT INTO Personnel (generalID)
-VALUES (1);
-
-
-DELETE PERSONNEL
--- Delete a Personnel (assuming personnelID = 1)
-DELETE FROM Personnel
-WHERE personnelID = 1;
-
-EDIT PERSONNEL
--- Edit a Personnel (update generalID, assuming personnelID = 1)
-UPDATE Personnel
-SET generalID = 2  -- Change to a different generalID
-WHERE personnelID = 1;
-
-DISPLAY PERSONNEL
--- Display a Personnel (display personnel with personnelID = 1)
-SELECT * FROM Personnel
-WHERE personnelID = 1;
 
 
 
@@ -455,6 +351,120 @@ BEGIN
 END$$
 
 DELIMITER ;
+
+
+
+
+
+QUESTION 1 AND 2
+CREATE LOCATION 
+
+DELIMITER //
+
+CREATE PROCEDURE CreateLocation(
+    IN locType ENUM('Head', 'Branch'),
+    IN cap INT,
+    IN name VARCHAR(100),
+    IN addrID INT,
+    IN phone VARCHAR(15),
+    IN web VARCHAR(100)
+)
+BEGIN
+    IF locType = 'Head' AND EXISTS (SELECT 1 FROM Locations WHERE locationType = 'Head') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A Head location already exists.';
+    ELSE
+        INSERT INTO Locations (locationType, maxCapacity, locationName, addressID, telephoneNo, webAddress)
+        VALUES (locType, cap, name, addrID, phone, web);
+    END IF;
+END //
+
+DELIMITER ;
+
+
+
+DELETE LOCATION 
+
+DELIMITER //
+
+CREATE PROCEDURE DeleteLocation(IN locID INT)
+BEGIN
+    DELETE FROM Locations WHERE locationID = locID;
+END //
+
+DELIMITER ;
+
+
+EDIT LOCATION
+
+DELIMITER //
+
+CREATE PROCEDURE EditLocation(
+    IN locID INT,
+    IN newType ENUM('Head', 'Branch'),
+    IN newCap INT,
+    IN newName VARCHAR(100),
+    IN newAddrID INT,
+    IN newPhone VARCHAR(15),
+    IN newWeb VARCHAR(100)
+)
+BEGIN
+    IF newType = 'Head' AND EXISTS (
+        SELECT 1 FROM Locations WHERE locationType = 'Head' AND locationID != locID
+    ) THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Another Head location already exists.';
+    ELSE
+        UPDATE Locations
+        SET locationType = newType,
+            maxCapacity = newCap,
+            locationName = newName,
+            addressID = newAddrID,
+            telephoneNo = newPhone,
+            webAddress = newWeb
+        WHERE locationID = locID;
+    END IF;
+END //
+
+DELIMITER ;
+
+
+DISPLAY ALL LOCATIONS
+DELIMITER //
+
+CREATE PROCEDURE DisplayLocations()
+BEGIN
+    SELECT L.*, A.address, A.city, A.province, A.postalCode
+    FROM Locations L
+    JOIN Addresses A ON L.addressID = A.addressID;
+END //
+
+DELIMITER ;
+
+
+CREATE PERSONNEL 
+-- Create a Personnel (add to the People table first, then reference it in the Personnel table)
+-- Assuming you already have a person added (let's say generalID = 1)
+INSERT INTO Personnel (generalID)
+VALUES (1);
+
+
+DELETE PERSONNEL
+-- Delete a Personnel (assuming personnelID = 1)
+DELETE FROM Personnel
+WHERE personnelID = 1;
+
+EDIT PERSONNEL
+-- Edit a Personnel (update generalID, assuming personnelID = 1)
+UPDATE Personnel
+SET generalID = 2  -- Change to a different generalID
+WHERE personnelID = 1;
+
+DISPLAY PERSONNEL
+-- Display a Personnel (display personnel with personnelID = 1)
+SELECT * FROM Personnel
+WHERE personnelID = 1;
+
+
+
 
 
 
